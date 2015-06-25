@@ -135,7 +135,7 @@ int main() {
 	
 	
 	
-	int numOfScenarios = 1;
+	int numOfScenarios = 10;
 
 
 	// initialize and name test scenarios
@@ -179,11 +179,11 @@ int main() {
 	
 	// searching for the best parameters
 	{
-		string scenario = dbCleanPrefix_g + "_1";
-		searchingOptimalParams(scenario, 4);
+		//string scenario = dbCleanPrefix_g + "_1";
+		//searchingOptimalParams(scenario, 4);
 	}
 
-	/*
+	
 	// initialize vector with column headings for result representation
 	vector<string> methods;
 	methods.push_back("TB");
@@ -205,7 +205,7 @@ int main() {
 	writeToFile("scenario_results.csv", strResults);
 	
 	cout << strResults << endl;
-	*/
+	
 
 
 	clock_t end = clock();
