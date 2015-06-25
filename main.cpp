@@ -250,14 +250,21 @@ void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 
 		// choose iteration range
 		int iterStart = 20;
-		int iterStop = 400;
+		int iterStop = 300;
 		int iterStep = 20;
 
 		// compute number of iterations (work to do)
-		int workToDo = 0;
+		unsigned int workToDo = 0;
 		for (int iter = iterStart; iter <= iterStop; iter += iterStep) {
 			workToDo += iter;
 		}
+
+		// compute multiplier (number of inner loops)
+		// 5 * 3 * 20 = 300
+		int multiplier = 300;
+
+
+		workToDo *= multiplier;
 
 		// compute fraction, that every thread has to do
 		int workPerThread = workToDo / numOfThreads;
@@ -270,6 +277,7 @@ void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 			// init stepsize
 			td->iterStep = iterStep;
 
+			/*
 			// init start for current thread
 			if (i == 0) {
 				td->iterStart = iterStart;
@@ -285,13 +293,38 @@ void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 			else {
 				// compute end of current thread
 				td->iterStop = td->iterStart;
-				int workForCurrentThread = td->iterStart;
+				int workForCurrentThread = td->iterStart * multiplier;
 				while (workForCurrentThread < workPerThread) {
 					td->iterStop += iterStep;
-					workForCurrentThread = workForCurrentThread + td->iterStop;
+					workForCurrentThread = workForCurrentThread + (td->iterStop * multiplier);
 				}
 				// for better distribution
 				td->iterStop -= iterStep;
+			}
+			*/
+
+			// init stop for current thread
+			if (i == 0) {
+				td->iterStop = iterStop;
+			}
+			else {
+				td->iterStop = threadData[i - 1]->iterStart - iterStep;
+			}
+
+			// the last thread should do the rest
+			if (i == (numOfThreads - 1)) {
+				td->iterStart = iterStart;
+			}
+			else {
+				// compute end of current thread
+				td->iterStart = td->iterStop;
+				int workForCurrentThread = td->iterStop * multiplier;
+				while (workForCurrentThread <= workPerThread) {
+					td->iterStart -= iterStep;
+					workForCurrentThread = workForCurrentThread + (td->iterStart * multiplier);
+				}
+				// for better distribution
+				td->iterStart += iterStep;
 			}
 
 			threadData.push_back(td);
@@ -339,9 +372,20 @@ void fmParallelParameterChoice(string trainFilename, string testFilename, Thread
 
 	string predFilename = "pred_result_"+ to_string(td->threadID);
 
-	writeToFile(paramFile_mcmc, "result" + delimiter_g + "stdev" + delimiter_g + "iterations\n");
-	writeToFile(paramFile_als, "result" + delimiter_g + "stdev" + delimiter_g + "iterations" + delimiter_g + "regulation\n");
-	writeToFile(paramFile_sgd, "result" + delimiter_g + "stdev" + delimiter_g + "iterations" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+	mcmcFileMutex_g.lock();
+	writeToFile(paramFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "stdev\n");
+	writeToFile(bestParameterFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "stdev\n");
+	mcmcFileMutex_g.unlock();
+
+	alsFileMutex_g.lock();
+	writeToFile(paramFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation\n");
+	writeToFile(bestParameterFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation\n");
+	alsFileMutex_g.unlock();
+
+	sgdFileMutex_g.lock();
+	writeToFile(paramFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+	writeToFile(bestParameterFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+	sgdFileMutex_g.unlock();
 
 
 	//runFMParser(trainFilename, testFilename, DATA_UED_TENSOR);
@@ -361,19 +405,19 @@ void fmParallelParameterChoice(string trainFilename, string testFilename, Thread
 		
 		currFmPredictor.setIterations(iters);
 
-		for (double stdev = 0.0; stdev <= 1.0; stdev += 0.2) {
+		for (double stdev = 0.0; stdev <= 2.0; stdev += 0.5) {
 			currFmPredictor.setStdev(stdev);
 			currFmPredictor.setAlgorithm("mcmc");
 
 			checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestMcmcPredictor, &bestMcmcResult, paramFile_mcmc, &mcmcFileMutex_g);
 
-			for (double reg = 0.0; reg <= 1.0; reg += 0.2) {
+			for (double reg = 0.0; reg <= 1.0; reg += 0.5) {
 				currFmPredictor.setRegulation(to_string(reg));
 				currFmPredictor.setAlgorithm("als");
 
 				checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestAlsPredictor, &bestAlsResult, paramFile_als, &alsFileMutex_g);
 
-				for (double lr = 0.00005; lr <= 0.01; lr += 0.00005) {
+				for (double lr = 0.0005; lr <= 0.01; lr += 0.0005) {
 					currFmPredictor.setLearningRate(lr);
 					currFmPredictor.setAlgorithm("sgd");
 
@@ -382,17 +426,17 @@ void fmParallelParameterChoice(string trainFilename, string testFilename, Thread
 			}
 		}
 
-		string line = predictionToString(&bestMcmcPredictor, bestMcmcResult, iters);
+		string line = predictionToString(&bestMcmcPredictor, bestMcmcResult, -1);
 		mcmcFileMutex_g.lock();
 		appendLineToFile(bestParameterFile_mcmc, line);
 		mcmcFileMutex_g.unlock();
 		
-		line = predictionToString(&bestAlsPredictor, bestAlsResult, iters);
+		line = predictionToString(&bestAlsPredictor, bestAlsResult, -1);
 		alsFileMutex_g.lock();
 		appendLineToFile(bestParameterFile_als, line);
 		alsFileMutex_g.unlock();
 
-		line = predictionToString(&bestSgdPredictor, bestSgdResult, iters);
+		line = predictionToString(&bestSgdPredictor, bestSgdResult, -1);
 		sgdFileMutex_g.lock();
 		appendLineToFile(bestParameterFile_sgd, line);
 		sgdFileMutex_g.unlock();
@@ -460,7 +504,7 @@ void fmParallelParameterChoicePerAlgorithm(string trainFilename, string testFile
 	//runFMParser(trainFilename, testFilename, delimiter, DATA_UED_TENSOR);
 
 	if (algorithm == "mcmc") {
-		writeToFile(paramFile_mcmc, "result" + delimiter_g + "stdev" + delimiter_g + "iterations" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(paramFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
 		writeToFile(bestParameterFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "bset_iterations" + delimiter_g + "stdev");
 		
 		// 20 * 6 = 120
@@ -481,7 +525,7 @@ void fmParallelParameterChoicePerAlgorithm(string trainFilename, string testFile
 		}
 	}
 	else if (algorithm == "als") {
-		writeToFile(paramFile_als, "result" + delimiter_g + "stdev" + delimiter_g + "iterations" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(paramFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
 		writeToFile(bestParameterFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "bset_iterations" + delimiter_g + "stdev" + delimiter_g + "regulation");
 		
 		// 20 * 6 * 6 = 720
@@ -506,7 +550,7 @@ void fmParallelParameterChoicePerAlgorithm(string trainFilename, string testFile
 		}
 	}
 	else if (algorithm == "sgd") {
-		writeToFile(paramFile_sgd, "result" + delimiter_g + "stdev" + delimiter_g + "iterations" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(paramFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
 		writeToFile(bestParameterFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "bset_iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
 		
 		// 20 * 6 * 6 * 21 = 15120
@@ -575,9 +619,9 @@ TatortFMPredictor fmSerialParameterChoice(string trainFilename, string testFilen
 
 	string predFilename = "pred_result";
 
-	writeToFile(paramFile_mcmc, "result" + delimiter_g + "stdev" + delimiter_g + "iterations" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
-	writeToFile(paramFile_als, "result" + delimiter_g + "stdev" + delimiter_g + "iterations" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
-	writeToFile(paramFile_sgd, "result" + delimiter_g + "stdev" + delimiter_g + "iterations" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+	writeToFile(paramFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+	writeToFile(paramFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+	writeToFile(paramFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
 
 	double bestResult = numeric_limits<double>::max();
 	//double res;
@@ -640,7 +684,7 @@ void checkParams(string trainFilename, string testFilename, string predFilename,
 		//res = fmTrainAndTest(trainFilename, testFilename, delimiter, "param_pred", *fmPredictor, DATA_UED_TENSOR);
 		res = runFMPredictor(trainFilename, testFilename, predFilename, *currFmPredictor);
 				
-		string line = predictionToString(currFmPredictor, *bestResult, -1);
+		string line = predictionToString(currFmPredictor, res, -1);
 		
 		// check if file is free for writing write
 		if (fileMutex != NULL)
