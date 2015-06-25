@@ -20,7 +20,7 @@ TatortFMParser::TatortFMParser() : Parser() {
 }
 
 TatortFMParser::~TatortFMParser() {
-	Parser::~Parser();
+	//Parser::~Parser();
 }
 
 

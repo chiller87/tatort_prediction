@@ -21,7 +21,7 @@ TatortTendencyParser::TatortTendencyParser() : Parser() {
 
 
 TatortTendencyParser::~TatortTendencyParser() {
-	Parser::Parser();
+
 }
 
 

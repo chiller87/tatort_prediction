@@ -65,9 +65,9 @@ double TatortFMPredictor::trainAndTest(string trainFilename, string testFilename
 	// execute libFM command
 	ostringstream libfmCmd("");
 
-	#ifdef linux
+	//#ifdef linux
 		libfmCmd << "./libFM ";
-	#endif
+	//#endif
 	#ifdef _WIN32
 		libfmCmd << "libfm.exe ";
 	#endif
