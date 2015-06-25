@@ -202,7 +202,7 @@ void Parser::divideLinesTrainAndTest(string sourceFilename, bool isHeaderPresent
 	
 	while (randomNumberCount != numTestData) {
 		// pick random number in range
-		randomNumber = ((double)rand() / (RAND_MAX+1)) * (_numOfDatasets);
+		randomNumber = ((double)rand() / (RAND_MAX)) * (_numOfDatasets - 1);
 		
 		// check if this dataset is already choosen
 		if (trainData[randomNumber] == 1) {
