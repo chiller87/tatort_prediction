@@ -138,7 +138,7 @@ int main() {
 	
 	
 	
-	int numOfScenarios = 1;
+	int numOfScenarios = 10;
 
 
 	// initialize and name test scenarios
