@@ -198,11 +198,11 @@ void Parser::divideLinesTrainAndTest(string sourceFilename, bool isHeaderPresent
 
 
 	int randomNumberCount = 0;
-	int randomNumber;
+	unsigned int randomNumber;
 	
 	while (randomNumberCount != numTestData) {
 		// pick random number in range
-		randomNumber = rand() % _numOfDatasets;
+		randomNumber = ((double)rand() / RAND_MAX) * (_numOfDatasets - 1);
 		
 		// check if this dataset is already choosen
 		if (trainData[randomNumber] == 1) {
