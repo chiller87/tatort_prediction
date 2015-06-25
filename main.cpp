@@ -54,7 +54,7 @@ using namespace std;
 
 
 // file extension of DB files
-#define DB_FILE_EXTENSION ".csv"
+#define DB_FILE_EXTENSION ".db"
 // file extension of libfm files
 #define LIBFM_FILE_EXTENSION ".libfm"
 
@@ -156,7 +156,14 @@ int main() {
 		ifstream inFile(dbCleanPrefix_g + DB_FILE_EXTENSION);
 		if (!inFile.is_open()) {
 			Logger::getInstance()->log("file '" + dbCleanPrefix_g + DB_FILE_EXTENSION + "' does not exist, cleaning dataset ...", LOG_DEBUG);
-			cleanDataset(dbPrefix_g, 20);
+			try {
+				cleanDataset(dbPrefix_g, 20);
+			}
+			catch (MyException e) {
+				cout << e.getErrorMsg() << endl;
+				cout << "make sure that there is a file '" + dbPrefix_g + DB_FILE_EXTENSION + "' present in yourr working directory!!" << endl;
+				return 1;
+			}
 			Logger::getInstance()->log("clean dataset created!", LOG_DEBUG);
 
 			
@@ -322,9 +329,9 @@ void fmParallelParameterChoice(string trainFilename, string testFilename, Thread
 	
 
 
-	string paramFile_sgd = "param_search_sgd.pdb";
-	string paramFile_als = "param_search_als.pdb";
-	string paramFile_mcmc = "param_search_mcmc.pdb";
+	string paramFile_sgd = "param_search_sgd.dat";
+	string paramFile_als = "param_search_als.dat";
+	string paramFile_mcmc = "param_search_mcmc.dat";
 
 	string bestParameterFile = "best_param.dat";
 	string bestParameterFile_mcmc = "best_param_mcmc.dat";
@@ -429,9 +436,9 @@ void fmParallelParameterChoicePerAlgorithm(string trainFilename, string testFile
 	TatortFMPredictor currFmPredictor;
 
 
-	string paramFile_sgd = "param_search_sgd.pdb";
-	string paramFile_als = "param_search_als.pdb";
-	string paramFile_mcmc = "param_search_mcmc.pdb";
+	string paramFile_sgd = "param_search_sgd.dat";
+	string paramFile_als = "param_search_als.dat";
+	string paramFile_mcmc = "param_search_mcmc.dat";
 
 	string bestParameterFile = "best_param.dat";
 	string bestParameterFile_mcmc = "best_param_mcmc.dat";
@@ -553,9 +560,9 @@ TatortFMPredictor fmSerialParameterChoice(string trainFilename, string testFilen
 	TatortFMPredictor currFmPredictor(bestFmPredictor);
 
 
-	string paramFile_sgd = "param_search_sgd.pdb";
-	string paramFile_als = "param_search_als.pdb";
-	string paramFile_mcmc = "param_search_mcmc.pdb";
+	string paramFile_sgd = "param_search_sgd.dat";
+	string paramFile_als = "param_search_als.dat";
+	string paramFile_mcmc = "param_search_mcmc.dat";
 
 	string bestParameterFile = "best_param.dat";
 	string bestParameterFile_mcmc = "best_param_mcmc.dat";
