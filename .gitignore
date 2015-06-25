@@ -5,6 +5,7 @@
 *.libfm
 *.db
 *.suo
+*.o
 
 
 
