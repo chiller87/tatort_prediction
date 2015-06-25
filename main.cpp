@@ -138,7 +138,7 @@ int main() {
 	
 	
 	
-	int numOfScenarios = 1;
+	int numOfScenarios = 5;
 
 
 	// initialize and name test scenarios
@@ -203,6 +203,7 @@ int main() {
 
 	string strResults = resultsToStringHuman(&scenarioResults, &methods);
 	writeToFile("scenario_results.dat", strResults);
+	Logger::getInstance()->log(strResults, LOG_INFO);
 	strResults = resultsToString(&scenarioResults, &methods);
 	writeToFile("scenario_results.csv", strResults);
 	
@@ -264,7 +265,7 @@ void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 		// compute fraction, that every thread has to do
 		int workPerThread = workToDo / numOfThreads;
 
-		for (int i = 0; i < numOfThreads; i++) {
+		for (unsigned int i = 0; i < numOfThreads; i++) {
 			
 			// create data for current thread
 			ThreadData_t td;
@@ -302,7 +303,7 @@ void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 		}
 
 
-		for (int i = 0; i < threads.size(); i++) {
+		for (unsigned int i = 0; i < threads.size(); i++) {
 			threads[i].join();
 		}
 
@@ -576,7 +577,7 @@ TatortFMPredictor fmSerialParameterChoice(string trainFilename, string testFilen
 	writeToFile(paramFile_sgd, "result" + delimiter_g + "stdev" + delimiter_g + "iterations" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
 
 	double bestResult = numeric_limits<double>::max();
-	double res;
+	//double res;
 
 	runFMParser(trainFilename, testFilename, DATA_UED_TENSOR);
 
@@ -723,8 +724,8 @@ string resultsToStringHuman(map<string, vector<double> >* predictionResults, vec
 string resultsToString(map<string, vector<double> >* predictionResults, vector<string>* methods) {
 	map<string, vector<double> >::iterator pqIter;
 
-	int scenarioColumnWidth = 20;
-	int columnWidth = 15;
+	//int scenarioColumnWidth = 20;
+	//int columnWidth = 15;
 
 	ostringstream os;
 

@@ -1,9 +1,11 @@
 # the compiler to use.
 CC=g++
 # options to pass to the compiler.
-CFLAGS=-std=c++11 -c -Wall -O3 -funroll-loops -funroll-all-loops
+CFLAGS=-std=c++11 -c -Wall -pthread
+# compiler optimizations
+# -O3 -funroll-loops -funroll-all-loops 
 # options to pass to the linker
-LDFLAGS=
+LDFLAGS= -lpthread
 # the soure files
 SOURCES=$(wildcard *.cpp) $(wildcard *.h)
 # the object files

@@ -5,6 +5,8 @@
 *.libfm
 *.db
 *.suo
+*.o
+test_linux
 
 
 
