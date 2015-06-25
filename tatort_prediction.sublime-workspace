@@ -1,0 +1,696 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"head",
+				"headerOffset"
+			],
+			[
+				"li",
+				"lines"
+			],
+			[
+				"tar",
+				"predictionTargetFilename"
+			],
+			[
+				"pred",
+				"predictionFilename"
+			],
+			[
+				"Tatort",
+				"TatortFMParser"
+			],
+			[
+				"libfm",
+				"libfmCmd"
+			],
+			[
+				"TatortFM",
+				"TatortFMPredictor"
+			],
+			[
+				"libf",
+				"libfmCmd"
+			],
+			[
+				"__",
+				"__LINUX"
+			],
+			[
+				"lib",
+				"libfmCmd"
+			],
+			[
+				"test",
+				"testFilename"
+			],
+			[
+				"train",
+				"trainFilename"
+			],
+			[
+				"_us",
+				"_useW"
+			],
+			[
+				"_use",
+				"_useW0"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "main.cpp",
+			"settings":
+			{
+				"buffer_size": 5824,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "TatortFMParser.cpp",
+			"settings":
+			{
+				"buffer_size": 5332,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "Predictor.h",
+			"settings":
+			{
+				"buffer_size": 178,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "TatortFMPredictor.h",
+			"settings":
+			{
+				"buffer_size": 748,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "TatortFMPredictor.cpp",
+			"settings":
+			{
+				"buffer_size": 2213,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "Tools.h",
+			"settings":
+			{
+				"buffer_size": 293,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "Tools.cpp",
+			"settings":
+			{
+				"buffer_size": 1058,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "TatortTendencyPredictor.cpp",
+			"settings":
+			{
+				"buffer_size": 9962,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "TatortFMParser.h",
+			"settings":
+			{
+				"buffer_size": 594,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "Parser.h",
+			"settings":
+			{
+				"buffer_size": 851,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "Parser.cpp",
+			"settings":
+			{
+				"buffer_size": 5419,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "TatortReferenceParser.cpp",
+			"settings":
+			{
+				"buffer_size": 10907,
+				"line_ending": "Windows"
+			}
+		}
+	],
+	"build_system": "",
+	"command_palette":
+	{
+		"height": 392.0,
+		"selected_items":
+		[
+			[
+				"ss",
+				"Set Syntax: C++"
+			]
+		],
+		"width": 404.0
+	},
+	"console":
+	{
+		"height": 0.0
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"file_history":
+	[
+		"/home/timmae/Documents/hsnr/master/sem4/code/tatort_prediction/tatort_prediction/pred_1.csv",
+		"/home/timmae/Documents/hsnr/master/sem4/code/tatort_prediction/tatort_prediction/pred_1.libfm",
+		"/home/timmae/Documents/hsnr/master/sem4/libfm_converter/libfm_converter/main.cpp",
+		"/home/timmae/Documents/hsnr/master/sem4/code/tatort_prediction/tatort_prediction/tatort_prediction.sublime-workspace",
+		"/home/timmae/Documents/hsnr/master/sem4/code/tatort_prediction/tatort_prediction/tatort_prediction.sublime-project",
+		"/usr/local/bin/foxit",
+		"/usr/local/bin/ceditor"
+	],
+	"find":
+	{
+		"height": 35.0
+	},
+	"find_in_files":
+	{
+		"height": 0.0,
+		"where_history":
+		[
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+			"trainAndTest",
+			"_numOfColums",
+			"divide",
+			"_numOfColums",
+			"doubleVector",
+			"stringVector",
+			"TatortFMPrdictor",
+			"computeMAE",
+			"computeMae",
+			"vector"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 0,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "main.cpp",
+					"settings":
+					{
+						"buffer_size": 5824,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								322,
+								322
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "TatortFMParser.cpp",
+					"settings":
+					{
+						"buffer_size": 5332,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								4042,
+								4042
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 1530.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "Predictor.h",
+					"settings":
+					{
+						"buffer_size": 178,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								150,
+								150
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "TatortFMPredictor.h",
+					"settings":
+					{
+						"buffer_size": 748,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								733,
+								733
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 255.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "TatortFMPredictor.cpp",
+					"settings":
+					{
+						"buffer_size": 2213,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1526,
+								1526
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 1071.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "Tools.h",
+					"settings":
+					{
+						"buffer_size": 293,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								241,
+								241
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "Tools.cpp",
+					"settings":
+					{
+						"buffer_size": 1058,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								211,
+								211
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 306.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "TatortTendencyPredictor.cpp",
+					"settings":
+					{
+						"buffer_size": 9962,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								6015,
+								6015
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 2244.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 8,
+					"file": "TatortFMParser.h",
+					"settings":
+					{
+						"buffer_size": 594,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								594,
+								594
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 9,
+					"file": "Parser.h",
+					"settings":
+					{
+						"buffer_size": 851,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								323,
+								323
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 10,
+					"file": "Parser.cpp",
+					"settings":
+					{
+						"buffer_size": 5419,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2979,
+								2979
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 2448.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 11,
+					"file": "TatortReferenceParser.cpp",
+					"settings":
+					{
+						"buffer_size": 10907,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1532,
+								1532
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 810.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				}
+			]
+		},
+		{
+			"sheets":
+			[
+			]
+		},
+		{
+			"sheets":
+			[
+			]
+		},
+		{
+			"sheets":
+			[
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 0.0
+	},
+	"input":
+	{
+		"height": 0.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			],
+			[
+				1,
+				0,
+				2,
+				1
+			],
+			[
+				2,
+				0,
+				3,
+				1
+			],
+			[
+				3,
+				0,
+				4,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			0.659945421468,
+			0.783808368708,
+			0.880382049727,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"replace":
+	{
+		"height": 0.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+			[
+				"trp",
+				"TatortReferenceParser.cpp"
+			],
+			[
+				"pars",
+				"Parser.cpp"
+			],
+			[
+				"par",
+				"Parser.h"
+			],
+			[
+				"tfmpa",
+				"TatortFMParser.cpp"
+			],
+			[
+				"tfmp",
+				"TatortFMParser.h"
+			],
+			[
+				"too",
+				"Tools.h"
+			],
+			[
+				"ttp",
+				"TatortTendencyPredictor.cpp"
+			],
+			[
+				"pre",
+				"Predictor.h"
+			],
+			[
+				"",
+				"main.cpp"
+			]
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 271.0,
+	"status_bar_visible": true
+}
