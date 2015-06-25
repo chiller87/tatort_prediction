@@ -126,7 +126,7 @@ int main() {
 	srand(time(NULL));
 
 
-
+	cout << "max random number = " << RAND_MAX << endl;
 	clock_t begin = clock();
 
 
