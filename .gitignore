@@ -21,13 +21,6 @@ bld/
 [Bb]in/
 [Oo]bj/
 
-# Visual Studio 2015 cache/options directory
-.vs/
-
-# MSTest test Results
-[Tt]est[Rr]esult*/
-[Bb]uild[Ll]og.*
-
 
 *_i.c
 *_p.c
@@ -53,6 +46,8 @@ bld/
 *.pidb
 *.svclog
 *.scc
+*.vcxproj
+*.vcxproj.filters
 
 # Visual C++ cache files
 ipch/
