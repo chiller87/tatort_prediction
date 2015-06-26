@@ -31,8 +31,7 @@ protected:
 	vector<double> _testRatings;
 
 
-	vector<int> createUserIds(unsigned int userColumnIndex);
-	vector<int> createIds(unsigned int columnIndex);
+
 
 
 
@@ -47,8 +46,7 @@ public:
 	virtual void writeDataToFile();
 	virtual void readDataFromFile();
 	vector<int> parseUsers();
-	void addUserIdToFile(string outfile, unsigned int userColumnIndex);
-	void addIdColumnToFile(string outfile, unsigned int columnIndex, string columnHeader, string delimiter);
+
 
 	void writeMapToFile(map<int, vector< pair<int, double> > > *data, string filename);
 	void readMapFromFile(map<int, vector< pair<int, double> > > *data, string filename);
