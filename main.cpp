@@ -94,6 +94,7 @@ void divideDataIntoTrainAndTestData(string sourceFilename, int count, int trainP
 // file operations
 void writeToFile(string filename, string text);
 void appendLineToFile(string filename, string text);
+bool fileExist(string filename);
 
 // to string operations
 string resultsToStringHuman(map<string, vector<double> >* predictionResults, vector<string>* methods);
@@ -119,94 +120,231 @@ void checkParams(string trainFilename, string testFilename, string predFilename,
 void searchingOptimalParams(string scenario, unsigned int numOfThreads = 1);
 
 
-
-int main() {
-
-
-	srand(time(NULL));
+// output
+void showHelp();
 
 
-	cout << "max random number = " << RAND_MAX << endl;
+
+
+
+
+
+
+
+void showHelp() {
+
+	int columnWidthOption = 16;
+	int columnWidthParam = 8;
+
+	cout << "=============================================================================" << endl;
+	cout << "                                       HELP                                  " << endl;
+	cout << "=============================================================================" << endl;
+	cout << "param types:\tn = int, d = double, str = string" << endl;
+	cout << setw(columnWidthOption) << "Option" << setw(columnWidthParam) << "Param" << "\tDescription" << endl;
+	cout << "-----------------------------------------------------------------------------" << endl;
+	cout << setw(columnWidthOption) << "-psearch" << setw(columnWidthParam) << "n" << "\trun parameter search with 'n' threads" << endl;
+	cout << setw(columnWidthOption) << "-ns" << setw(columnWidthParam) << "n"<< "\trun test for 'n' different scenarios" << endl;
+	cout << setw(columnWidthOption) << "-algo" << setw(columnWidthParam) << "str"<< "\trun test with algorithm 'str' (either 'mcmc', 'sgd' or 'als')" << endl;
+	cout << setw(columnWidthOption) << "-iter"<< setw(columnWidthParam) << "n" << "\tset max iterations the test schould be run with" << endl;
+	cout << setw(columnWidthOption) << "-stdev"<< setw(columnWidthParam) << "d" << "\tchoose standard deviation of 'd' initializing FM params" << endl;
+	cout << setw(columnWidthOption) << "-reg"<< setw(columnWidthParam) << "str" << "\tregulation to be used with als and sgd (one value: all same regulation)" << endl;
+	cout << setw(columnWidthOption) << "-lr" << setw(columnWidthParam) << "d"<< "\tlearning rate to be used with sgd" << endl;
+	cout << setw(columnWidthOption) << "-help, -h" << "\tshow this screen" << endl;
+
+	cout << endl;
+}
+
+
+
+
+
+int main(int argc, char **argv) {
+
+
+
+
+
+	//cout << "max random number = " << RAND_MAX << endl;
 	clock_t begin = clock();
 	// init logger
 	Logger::getInstance()->setVerbosityLevel(LOG_DEBUG);
 
 
-	
-	
-	
-	int numOfScenarios = 10;
 
 
-	// initialize and name test scenarios
-	// scenario -> results: 	TB    FM (Matrix)    FM (Tensor)    ...
-	map<string, vector<double> > scenarioResults;
-	for (int i = 1; i <= numOfScenarios; i++) {
-		string strId = to_string(i);
-		scenarioResults.insert(pair<string, vector<double> >(dbCleanPrefix_g+"_" + strId, vector<double>()));
-		scenarioResults.insert(pair<string, vector<double> >(dbPrefix_g+"_" + strId, vector<double>()));
-	}
+	bool help = false;
+	bool parameterSearch = false;
+	unsigned int numOfThreads = 2;
+	unsigned int numOfScenarios = 2;
+	double initStdev = 0.0, initLr = 0.01;
+	int initIter = 20;
+	string initAlgo = "mcmc", initReg = "0";
 
-
-
-	{
-		ifstream inFile(dbCleanPrefix_g + DB_FILE_EXTENSION);
-		if (!inFile.is_open()) {
-			Logger::getInstance()->log("file '" + dbCleanPrefix_g + DB_FILE_EXTENSION + "' does not exist, cleaning dataset ...", LOG_DEBUG);
-			try {
-				cleanDataset(dbPrefix_g, 20);
-			}
-			catch (MyException e) {
-				cout << e.getErrorMsg() << endl;
-				cout << "make sure that there is a file '" + dbPrefix_g + DB_FILE_EXTENSION + "' present in yourr working directory!!" << endl;
+	// parsing command line arguments
+	for (int i = 0; i < argc; i++) {
+		//cout << i << " = " << argv[i] << endl;
+		if(!string("-psearch").compare(argv[i])) {
+			parameterSearch = true;
+			if(argc > i+1) {
+				numOfThreads = stoi(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
 				return 1;
 			}
-			Logger::getInstance()->log("clean dataset created!", LOG_DEBUG);
-
-			
-			Logger::getInstance()->log("creating train and test files ...", LOG_DEBUG);
-			divideDataIntoTrainAndTestData(dbPrefix_g, numOfScenarios, 80);
-			divideDataIntoTrainAndTestData(dbCleanPrefix_g, numOfScenarios, 80);
-			Logger::getInstance()->log("train and test files created!", LOG_DEBUG);
+		}
+		else if(!string("-ns").compare(argv[i])) {
+			if(argc > i+1) {
+				numOfScenarios = stoi(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-stdev").compare(argv[i])) {
+			if(argc > i+1) {
+				initStdev = stod(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-reg").compare(argv[i])) {
+			if(argc > i+1) {
+				initReg = string(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-lr").compare(argv[i])) {
+			if(argc > i+1) {
+				initLr = stod(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-iter").compare(argv[i])) {
+			if(argc > i+1) {
+				initIter = stoi(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-algo").compare(argv[i])) {
+			if(argc > i+1) {
+				initAlgo = string(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if( (!string("-help").compare(argv[i])) || (!string("-h").compare(argv[i])) ) {
+			//cout << argv[i] << " is present!" << endl;
+			help = true;
 		}
 	}
 
-		
+
+	srand(time(NULL));
 
 
-	// create fm predictor and initialize tuning params
+	
+
+
 	
 	
+	
+	
+	// show help menu
+	if(help) {
+		showHelp();
+	}
 	// searching for the best parameters
-	{
-		//string scenario = dbCleanPrefix_g + "_1";
-		//searchingOptimalParams(scenario, 4);
+	else if(parameterSearch) {
+
+		string scenario = dbCleanPrefix_g + "_1";
+		try {
+			searchingOptimalParams(scenario, numOfThreads);
+		} catch(MyException e) {
+			Logger::getInstance()->log(e.getErrorMsg(), LOG_CRITICAL);
+		}
 	}
+	// run test
+	else {
 
+
+		// initialize and name test scenarios
+		// scenario -> results: 	TB    FM (Matrix)    FM (Tensor)    ...
+		map<string, vector<double> > scenarioResults;
+		for (unsigned int i = 1; i <= numOfScenarios; i++) {
+			string strId = to_string(i);
+			scenarioResults.insert(pair<string, vector<double> >(dbCleanPrefix_g+"_" + strId, vector<double>()));
+			scenarioResults.insert(pair<string, vector<double> >(dbPrefix_g+"_" + strId, vector<double>()));
+		}
+
+
+
+		{
+			ifstream inFile(dbCleanPrefix_g + DB_FILE_EXTENSION);
+			if (!inFile.is_open()) {
+				Logger::getInstance()->log("file '" + dbCleanPrefix_g + DB_FILE_EXTENSION + "' does not exist, cleaning dataset ...", LOG_DEBUG);
+				try {
+					cleanDataset(dbPrefix_g, 20);
+				}
+				catch (MyException e) {
+					cout << e.getErrorMsg() << endl;
+					cout << "make sure that there is a file '" + dbPrefix_g + DB_FILE_EXTENSION + "' present in yourr working directory!!" << endl;
+					return 1;
+				}
+				Logger::getInstance()->log("clean dataset created!", LOG_DEBUG);
+
+				
+				Logger::getInstance()->log("creating train and test files ...", LOG_DEBUG);
+				divideDataIntoTrainAndTestData(dbPrefix_g, numOfScenarios, 80);
+				divideDataIntoTrainAndTestData(dbCleanPrefix_g, numOfScenarios, 80);
+				Logger::getInstance()->log("train and test files created!", LOG_DEBUG);
+			}
+		}
+
+		
+		// initialize vector with column headings for result representation
+		vector<string> methods;
+		methods.push_back("TB");
+		methods.push_back("FM (Matrix)");
+		methods.push_back("FM (Tensor)");
+
+
+		TatortFMPredictor fmPredictor;
+		fmPredictor.setAlgorithm(initAlgo);
+		fmPredictor.setIterations(initIter);
+		fmPredictor.setStdev(initStdev);
+		fmPredictor.setRegulation(initReg);
+		fmPredictor.setLearningRate(initLr);
+
+		map<string, vector<double> >::iterator scenarioIter;
+		for (scenarioIter = scenarioResults.begin(); scenarioIter != scenarioResults.end(); scenarioIter++) {
+			testScenario(scenarioIter->first, &scenarioIter->second, fmPredictor);
+		}
+
+
+		string strResults = resultsToStringHuman(&scenarioResults, &methods);
+		writeToFile("scenario_results.dat", strResults);
+		Logger::getInstance()->log(strResults, LOG_INFO);
+		strResults = resultsToString(&scenarioResults, &methods);
+		writeToFile("scenario_results.csv", strResults);
+		
+		cout << strResults << endl;
 	
-	// initialize vector with column headings for result representation
-	vector<string> methods;
-	methods.push_back("TB");
-	methods.push_back("FM (Matrix)");
-	methods.push_back("FM (Tensor)");
-
-
-	TatortFMPredictor fmPredictor;
-	map<string, vector<double> >::iterator scenarioIter;
-	for (scenarioIter = scenarioResults.begin(); scenarioIter != scenarioResults.end(); scenarioIter++) {
-		testScenario(scenarioIter->first, &scenarioIter->second, fmPredictor);
 	}
-
-
-	string strResults = resultsToStringHuman(&scenarioResults, &methods);
-	writeToFile("scenario_results.dat", strResults);
-	Logger::getInstance()->log(strResults, LOG_INFO);
-	strResults = resultsToString(&scenarioResults, &methods);
-	writeToFile("scenario_results.csv", strResults);
-	
-	cout << strResults << endl;
-	
-
 
 	clock_t end = clock();
 	double elapsedSeconds = double(end - begin) / CLOCKS_PER_SEC;
@@ -222,9 +360,18 @@ int main() {
 
 
 
+
+
 // initiates parameter testing for the given scenario. the number of threads given determines if the serial (1 or lower) or parallel (> 1) variant is used
 void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 	if (numOfThreads > 1) {
+
+		if(!fileExist(scenario+trainSuffix_g+LIBFM_FILE_EXTENSION))
+			throw MyException("file '"+scenario+trainSuffix_g+LIBFM_FILE_EXTENSION+"' does not exist!");
+		if(!fileExist(scenario+testSuffix_g+LIBFM_FILE_EXTENSION))
+			throw MyException("file '"+scenario+testSuffix_g+LIBFM_FILE_EXTENSION+"' does not exist!");
+		if(!fileExist(scenario+targetSuffix_g+DB_FILE_EXTENSION))
+			throw MyException("file '"+scenario+targetSuffix_g+LIBFM_FILE_EXTENSION+"' does not exist!");
 
 		/*
 		// working but inefficient way of parallelization, because sgd thread has a lot more to do as als and mcmc thread
@@ -820,7 +967,11 @@ double fmTrainAndTest(string trainFilename, string testFilename, string predFile
 
 	double res = -1;
 
-	runFMParser(trainFilename, testFilename, dataRepresentation);
+	if(!fileExist(trainFilename+LIBFM_FILE_EXTENSION) || !fileExist(testFilename+LIBFM_FILE_EXTENSION))
+		runFMParser(trainFilename, testFilename, dataRepresentation);
+	else
+		Logger::getInstance()->log("files "+trainFilename+LIBFM_FILE_EXTENSION+" and "+testFilename+LIBFM_FILE_EXTENSION+" already exist. skipping creating and parsing them!", LOG_INFO);
+
 	res = runFMPredictor(trainFilename, testFilename, predFilename, fmPredictor);
 	
 	return res;
@@ -937,5 +1088,11 @@ void divideDataIntoTrainAndTestData(string sourceFilename, int count, int trainP
 }
 
 
-
+bool fileExist(string filename) {
+	ifstream file(filename);
+	if(file.is_open())
+		return true;
+	else
+		return false;
+}
 
