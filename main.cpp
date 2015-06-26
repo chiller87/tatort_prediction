@@ -42,6 +42,7 @@
 #include "TatortTendencyPredictor.h"
 #include "TatortFMParser.h"
 #include "TatortFMPredictor.h"
+#include "StringTokenizer.h"
 
 using namespace std;
 
@@ -75,7 +76,7 @@ mutex mcmcFileMutex_g;
 
 
 
-// global definitions
+// global definitions of filename parts
 string dbPrefix_g = "tatortdb";
 string dbCleanPrefix_g = "tatortdb_clean";
 string trainSuffix_g = "_train";
@@ -85,8 +86,31 @@ string targetSuffix_g = "_target";
 string delimiter_g = "|";
 
 
+// global definitions used for parameter search
+int iterStart_g = 20, iterStop_g = 100, iterStep_g = 20;
+double stdevStart_g = 0.0, stdevStop_g = 5.0, stdevStep_g = 1.0;
+double regStart_g = 0.0, regStop_g = 50.0, regStep_g = 10.0;
+double lrStart_g = 0.0001, lrStop_g = 0.001, lrStep_g = 0.0001;
+unsigned int numOfThreads_g = 2;
+bool mcmc_g = false, sgd_g = false, als_g = false;
+
+
+// global definitions used to determine, what action to be performed
+bool help_g = false;
+bool parameterSearch_g = false;
+bool runScenario_g = false;
+
+
+// global definitions used for scenario testing
+double initStdev_g = 0.0, initLr_g = 0.01;
+int initIter_g = 20;
+string initAlgo_g = "mcmc", initReg_g = "0";
+unsigned int numOfScenarios_g = 2;
+
+
+
 // modifying DB data
-void addUserIdAndDetectiveId();
+void addUserIdAndDetectiveId(string filename);
 void parseMapsAndWriteToFile(string filename);
 void cleanDataset(string filename, int userRatingThreshold);
 void divideDataIntoTrainAndTestData(string sourceFilename, int count, int trainPercentage);
@@ -119,9 +143,14 @@ TatortFMPredictor fmSerialParameterChoice(string trainFilename, string testFilen
 void checkParams(string trainFilename, string testFilename, string predFilename, TatortFMPredictor *currFmPredictor, TatortFMPredictor *bestFmPredictor, double *bestResult, string outFilename, mutex *fileMutex = NULL);
 void searchingOptimalParams(string scenario, unsigned int numOfThreads = 1);
 
-
 // output
 void showHelp();
+
+// generel
+int parseCmdLineArguments(int argc, char **argv);
+
+
+
 
 
 
@@ -142,17 +171,32 @@ void showHelp() {
 	cout << "param types:\tn = int, d = double, str = string" << endl;
 	cout << setw(columnWidthOption) << "Option" << setw(columnWidthParam) << "Param" << "\tDescription" << endl;
 	cout << "-----------------------------------------------------------------------------" << endl;
-	cout << setw(columnWidthOption) << "-psearch" << setw(columnWidthParam) << "n" << "\trun parameter search with 'n' threads" << endl;
+	cout << endl << "options used for testing scenarios:" << endl;
 	cout << setw(columnWidthOption) << "-ns" << setw(columnWidthParam) << "n"<< "\trun test for 'n' different scenarios" << endl;
 	cout << setw(columnWidthOption) << "-algo" << setw(columnWidthParam) << "str"<< "\trun test with algorithm 'str' (either 'mcmc', 'sgd' or 'als')" << endl;
 	cout << setw(columnWidthOption) << "-iter"<< setw(columnWidthParam) << "n" << "\tset max iterations the test schould be run with" << endl;
 	cout << setw(columnWidthOption) << "-stdev"<< setw(columnWidthParam) << "d" << "\tchoose standard deviation of 'd' initializing FM params" << endl;
 	cout << setw(columnWidthOption) << "-reg"<< setw(columnWidthParam) << "str" << "\tregulation to be used with als and sgd (one value: all same regulation)" << endl;
 	cout << setw(columnWidthOption) << "-lr" << setw(columnWidthParam) << "d"<< "\tlearning rate to be used with sgd" << endl;
-	cout << setw(columnWidthOption) << "-help, -h" << "\tshow this screen" << endl;
+
+	cout << endl << "options used for parameter search:" << endl;
+	cout << setw(columnWidthOption) << "-psearch" << setw(columnWidthParam) << "n" << "\trun parameter search with 'n' threads" << endl;
+	cout << setw(columnWidthOption) << "-ps_algos" << setw(columnWidthParam) << "n,n,n" << "\trun parameter search algorithm 'mcmc,als,sgd' (e.g. '1,0,1' for mcmc and sgd)" << endl;
+	cout << setw(columnWidthOption) << "-ps_iter" << setw(columnWidthParam) << "n,n,n" << "\trun parameter search with range of iterations 'start,stop,step'" << endl;
+	cout << setw(columnWidthOption) << "-ps_stdev" << setw(columnWidthParam) << "d,d,d" << "\trun parameter search with range of standard deviation 'start,stop,step'" << endl;
+	cout << setw(columnWidthOption) << "-ps_reg" << setw(columnWidthParam) << "d,d,d" << "\trun parameter search with range of regulation 'start,stop,step'" << endl;
+	cout << setw(columnWidthOption) << "-ps_lr" << setw(columnWidthParam) << "d,d,d" << "\trun parameter search with range of learning rates 'start,stop,step'" << endl;
+	
+	cout << endl << "general options:" << endl;
+	cout << setw(columnWidthOption) << "-help, -h" << setw(columnWidthParam) << " " << "\tshow this screen" << endl;
+	cout << endl << "if multiple options (-h, -ns, -psearch) are present, only one executed:" << endl;
+	cout << "1. -h" << endl;
+	cout << "2. -psearch" << endl;
+	cout << "3. -ns" << endl;
 
 	cout << endl;
 }
+
 
 
 
@@ -170,122 +214,47 @@ int main(int argc, char **argv) {
 	Logger::getInstance()->setVerbosityLevel(LOG_DEBUG);
 
 
+	parseCmdLineArguments(argc, argv);
 
+	
 
-	bool help = false;
-	bool parameterSearch = false;
-	unsigned int numOfThreads = 2;
-	unsigned int numOfScenarios = 2;
-	double initStdev = 0.0, initLr = 0.01;
-	int initIter = 20;
-	string initAlgo = "mcmc", initReg = "0";
-
-	// parsing command line arguments
-	for (int i = 0; i < argc; i++) {
-		//cout << i << " = " << argv[i] << endl;
-		if(!string("-psearch").compare(argv[i])) {
-			parameterSearch = true;
-			if(argc > i+1) {
-				numOfThreads = stoi(argv[++i]);
-			} else {
-				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
-				showHelp();
-				return 1;
-			}
-		}
-		else if(!string("-ns").compare(argv[i])) {
-			if(argc > i+1) {
-				numOfScenarios = stoi(argv[++i]);
-			} else {
-				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
-				showHelp();
-				return 1;
-			}
-		}
-		else if(!string("-stdev").compare(argv[i])) {
-			if(argc > i+1) {
-				initStdev = stod(argv[++i]);
-			} else {
-				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
-				showHelp();
-				return 1;
-			}
-		}
-		else if(!string("-reg").compare(argv[i])) {
-			if(argc > i+1) {
-				initReg = string(argv[++i]);
-			} else {
-				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
-				showHelp();
-				return 1;
-			}
-		}
-		else if(!string("-lr").compare(argv[i])) {
-			if(argc > i+1) {
-				initLr = stod(argv[++i]);
-			} else {
-				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
-				showHelp();
-				return 1;
-			}
-		}
-		else if(!string("-iter").compare(argv[i])) {
-			if(argc > i+1) {
-				initIter = stoi(argv[++i]);
-			} else {
-				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
-				showHelp();
-				return 1;
-			}
-		}
-		else if(!string("-algo").compare(argv[i])) {
-			if(argc > i+1) {
-				initAlgo = string(argv[++i]);
-			} else {
-				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
-				showHelp();
-				return 1;
-			}
-		}
-		else if( (!string("-help").compare(argv[i])) || (!string("-h").compare(argv[i])) ) {
-			//cout << argv[i] << " is present!" << endl;
-			help = true;
-		}
-	}
+	
 
 
 	srand(time(NULL));
 
 
 	
-
+	addUserIdAndDetectiveId(dbCleanPrefix_g);
 
 	
 	
+
+
 	
 	
 	// show help menu
-	if(help) {
+	if(help_g) {
 		showHelp();
 	}
 	// searching for the best parameters
-	else if(parameterSearch) {
+	else if(parameterSearch_g) {
 
 		string scenario = dbCleanPrefix_g + "_1";
 		try {
-			searchingOptimalParams(scenario, numOfThreads);
+			searchingOptimalParams(scenario, numOfThreads_g);
 		} catch(MyException e) {
 			Logger::getInstance()->log(e.getErrorMsg(), LOG_CRITICAL);
 		}
 	}
 	// run test
-	else {
+	else if (runScenario_g){
 
 
 		// initialize and name test scenarios
 		// scenario -> results: 	TB    FM (Matrix)    FM (Tensor)    ...
 		map<string, vector<double> > scenarioResults;
-		for (unsigned int i = 1; i <= numOfScenarios; i++) {
+		for (unsigned int i = 1; i <= numOfScenarios_g; i++) {
 			string strId = to_string(i);
 			scenarioResults.insert(pair<string, vector<double> >(dbCleanPrefix_g+"_" + strId, vector<double>()));
 			scenarioResults.insert(pair<string, vector<double> >(dbPrefix_g+"_" + strId, vector<double>()));
@@ -309,8 +278,8 @@ int main(int argc, char **argv) {
 
 				
 				Logger::getInstance()->log("creating train and test files ...", LOG_DEBUG);
-				divideDataIntoTrainAndTestData(dbPrefix_g, numOfScenarios, 80);
-				divideDataIntoTrainAndTestData(dbCleanPrefix_g, numOfScenarios, 80);
+				divideDataIntoTrainAndTestData(dbPrefix_g, numOfScenarios_g, 80);
+				divideDataIntoTrainAndTestData(dbCleanPrefix_g, numOfScenarios_g, 80);
 				Logger::getInstance()->log("train and test files created!", LOG_DEBUG);
 			}
 		}
@@ -324,11 +293,11 @@ int main(int argc, char **argv) {
 
 
 		TatortFMPredictor fmPredictor;
-		fmPredictor.setAlgorithm(initAlgo);
-		fmPredictor.setIterations(initIter);
-		fmPredictor.setStdev(initStdev);
-		fmPredictor.setRegulation(initReg);
-		fmPredictor.setLearningRate(initLr);
+		fmPredictor.setAlgorithm(initAlgo_g);
+		fmPredictor.setIterations(initIter_g);
+		fmPredictor.setStdev(initStdev_g);
+		fmPredictor.setRegulation(initReg_g);
+		fmPredictor.setLearningRate(initLr_g);
 
 		map<string, vector<double> >::iterator scenarioIter;
 		for (scenarioIter = scenarioResults.begin(); scenarioIter != scenarioResults.end(); scenarioIter++) {
@@ -364,7 +333,7 @@ int main(int argc, char **argv) {
 
 // initiates parameter testing for the given scenario. the number of threads given determines if the serial (1 or lower) or parallel (> 1) variant is used
 void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
-	if (numOfThreads > 1) {
+	if (numOfThreads >= 1) {
 
 		if(!fileExist(scenario+trainSuffix_g+LIBFM_FILE_EXTENSION))
 			throw MyException("file '"+scenario+trainSuffix_g+LIBFM_FILE_EXTENSION+"' does not exist!");
@@ -374,6 +343,7 @@ void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 			throw MyException("file '"+scenario+targetSuffix_g+LIBFM_FILE_EXTENSION+"' does not exist!");
 
 		/*
+		method 1:
 		// working but inefficient way of parallelization, because sgd thread has a lot more to do as als and mcmc thread
 		{
 			TatortFMPredictor fmPredictor_mcmc;
@@ -396,9 +366,9 @@ void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 		vector<ThreadData_t *> threadData;
 
 		// choose iteration range
-		int iterStart = 20;
-		int iterStop = 300;
-		int iterStep = 20;
+		int iterStart = iterStart_g;
+		int iterStop = iterStop_g;
+		int iterStep = iterStep_g;
 
 		// compute number of iterations (work to do)
 		unsigned int workToDo = 0;
@@ -406,12 +376,6 @@ void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 			workToDo += iter;
 		}
 
-		// compute multiplier (number of inner loops)
-		// 5 * 3 * 20 = 300
-		int multiplier = 300;
-
-
-		workToDo *= multiplier;
 
 		// compute fraction, that every thread has to do
 		int workPerThread = workToDo / numOfThreads;
@@ -423,32 +387,6 @@ void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 			td->threadID = i;
 			// init stepsize
 			td->iterStep = iterStep;
-
-			/*
-			// init start for current thread
-			if (i == 0) {
-				td->iterStart = iterStart;
-			}
-			else {
-				td->iterStart = threadData[i - 1]->iterStop + iterStep;
-			}
-			
-			// the last thread should do the rest
-			if (i == (numOfThreads - 1)) {
-				td->iterStop = iterStop;
-			}
-			else {
-				// compute end of current thread
-				td->iterStop = td->iterStart;
-				int workForCurrentThread = td->iterStart * multiplier;
-				while (workForCurrentThread < workPerThread) {
-					td->iterStop += iterStep;
-					workForCurrentThread = workForCurrentThread + (td->iterStop * multiplier);
-				}
-				// for better distribution
-				td->iterStop -= iterStep;
-			}
-			*/
 
 			// init stop for current thread
 			if (i == 0) {
@@ -465,11 +403,11 @@ void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 			else {
 				// compute end of current thread
 				td->iterStart = td->iterStop;
-				int workForCurrentThread = td->iterStop * multiplier;
-				while (workForCurrentThread <= workPerThread) {
+				int workForCurrentThread = td->iterStop;
+				do {
 					td->iterStart -= iterStep;
-					workForCurrentThread = workForCurrentThread + (td->iterStart * multiplier);
-				}
+					workForCurrentThread = workForCurrentThread + td->iterStart;
+				} while(workForCurrentThread <= workPerThread);
 				// for better distribution
 				td->iterStart += iterStep;
 			}
@@ -487,9 +425,12 @@ void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 
 	}
 	else {
-		TatortFMPredictor fmPredictor = fmSerialParameterChoice(scenario + trainSuffix_g, scenario + testSuffix_g);
+		Logger::getInstance()->log("invalid number of threads!", LOG_ERROR);
 	}
 }
+
+
+
 
 
 
@@ -519,20 +460,28 @@ void fmParallelParameterChoice(string trainFilename, string testFilename, Thread
 
 	string predFilename = "pred_result_"+ to_string(td->threadID);
 
-	mcmcFileMutex_g.lock();
-	writeToFile(paramFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "stdev\n");
-	writeToFile(bestParameterFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "stdev\n");
-	mcmcFileMutex_g.unlock();
 
-	alsFileMutex_g.lock();
-	writeToFile(paramFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation\n");
-	writeToFile(bestParameterFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation\n");
-	alsFileMutex_g.unlock();
+	if(mcmc_g) {
+		mcmcFileMutex_g.lock();
+		writeToFile(paramFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "stdev\n");
+		writeToFile(bestParameterFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "stdev\n");
+		mcmcFileMutex_g.unlock();
+	}
 
-	sgdFileMutex_g.lock();
-	writeToFile(paramFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
-	writeToFile(bestParameterFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
-	sgdFileMutex_g.unlock();
+
+	if(als_g) {
+		alsFileMutex_g.lock();
+		writeToFile(paramFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation\n");
+		writeToFile(bestParameterFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation\n");
+		alsFileMutex_g.unlock();
+	}
+
+	if(sgd_g) {
+		sgdFileMutex_g.lock();
+		writeToFile(paramFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(bestParameterFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		sgdFileMutex_g.unlock();
+	}
 
 
 	//runFMParser(trainFilename, testFilename, DATA_UED_TENSOR);
@@ -552,41 +501,52 @@ void fmParallelParameterChoice(string trainFilename, string testFilename, Thread
 		
 		currFmPredictor.setIterations(iters);
 
-		for (double stdev = 0.0; stdev <= 2.0; stdev += 0.5) {
+		for (double stdev = stdevStart_g; stdev <= stdevStop_g; stdev += stdevStep_g) {
 			currFmPredictor.setStdev(stdev);
 			currFmPredictor.setAlgorithm("mcmc");
 
 			checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestMcmcPredictor, &bestMcmcResult, paramFile_mcmc, &mcmcFileMutex_g);
 
-			for (double reg = 0.0; reg <= 1.0; reg += 0.5) {
+			for (double reg = regStart_g; reg <= regStop_g; reg += regStep_g) {
 				currFmPredictor.setRegulation(to_string(reg));
 				currFmPredictor.setAlgorithm("als");
 
 				checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestAlsPredictor, &bestAlsResult, paramFile_als, &alsFileMutex_g);
 
-				for (double lr = 0.0005; lr <= 0.01; lr += 0.0005) {
-					currFmPredictor.setLearningRate(lr);
-					currFmPredictor.setAlgorithm("sgd");
+				if(sgd_g) {
+					for (double lr = lrStart_g; lr <= lrStop_g; lr += lrStep_g) {
+						currFmPredictor.setLearningRate(lr);
+						currFmPredictor.setAlgorithm("sgd");
 
-					checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestSgdPredictor, &bestSgdResult, paramFile_sgd, &sgdFileMutex_g);
+						checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestSgdPredictor, &bestSgdResult, paramFile_sgd, &sgdFileMutex_g);
+					}
 				}
 			}
 		}
 
-		string line = predictionToString(&bestMcmcPredictor, bestMcmcResult, -1);
-		mcmcFileMutex_g.lock();
-		appendLineToFile(bestParameterFile_mcmc, line);
-		mcmcFileMutex_g.unlock();
+		string line;
 		
-		line = predictionToString(&bestAlsPredictor, bestAlsResult, -1);
-		alsFileMutex_g.lock();
-		appendLineToFile(bestParameterFile_als, line);
-		alsFileMutex_g.unlock();
+		if(mcmc_g) {
+			line = predictionToString(&bestMcmcPredictor, bestMcmcResult, -1);
+			mcmcFileMutex_g.lock();
+			appendLineToFile(bestParameterFile_mcmc, line);
+			mcmcFileMutex_g.unlock();
+		}
 
-		line = predictionToString(&bestSgdPredictor, bestSgdResult, -1);
-		sgdFileMutex_g.lock();
-		appendLineToFile(bestParameterFile_sgd, line);
-		sgdFileMutex_g.unlock();
+		if(als_g) {
+			line = predictionToString(&bestAlsPredictor, bestAlsResult, -1);
+			alsFileMutex_g.lock();
+			appendLineToFile(bestParameterFile_als, line);
+			alsFileMutex_g.unlock();
+		}
+
+		if(sgd_g) {
+			line = predictionToString(&bestSgdPredictor, bestSgdResult, -1);
+			sgdFileMutex_g.lock();
+			appendLineToFile(bestParameterFile_sgd, line);
+			sgdFileMutex_g.unlock();
+		}
+
 
 	}
 
@@ -600,6 +560,9 @@ void fmParallelParameterChoice(string trainFilename, string testFilename, Thread
 	
 
 }
+
+
+
 
 
 // creates a string from the given FM Predictor, the best result and the number of iterations, this result belongs to
@@ -622,203 +585,11 @@ string predictionToString(TatortFMPredictor *bestFmPredictor, double bestResult,
 
 
 
-// threadfunction: runs a bunch of parameter combinations with only ONE algorithm (per thread)
-void fmParallelParameterChoicePerAlgorithm(string trainFilename, string testFilename, string algorithm, TatortFMPredictor *bestFmPredictor) {
-	Logger::getInstance()->log("experimentally searching for the best model parameter choices ...", LOG_DEBUG);
-
-	int errorCount = 0;
-
-	TatortFMPredictor currFmPredictor;
-
-
-	string paramFile_sgd = "param_search_sgd.dat";
-	string paramFile_als = "param_search_als.dat";
-	string paramFile_mcmc = "param_search_mcmc.dat";
-
-	string bestParameterFile = "best_param.dat";
-	string bestParameterFile_mcmc = "best_param_mcmc.dat";
-	string bestParameterFile_als = "best_param_als.dat";
-	string bestParameterFile_sgd = "best_param_sgd.dat";
-
-	string predFile_sgd = "pred_sgd";
-	string predFile_als = "pred_als";
-	string predFile_mcmc = "pred_mcmc";
-	
-	
-
-	double bestResult = numeric_limits<double>::max();
-
-	//runFMParser(trainFilename, testFilename, delimiter, DATA_UED_TENSOR);
-
-	if (algorithm == "mcmc") {
-		writeToFile(paramFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
-		writeToFile(bestParameterFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "bset_iterations" + delimiter_g + "stdev");
-		
-		// 20 * 6 = 120
-		for (int iters = 20; iters <= 400; iters += 20) {
-			currFmPredictor.setIterations(iters);
-
-			for (double stdev = 0.0; stdev <= 1.0; stdev += 0.2) {
-				currFmPredictor.setStdev(stdev);
-				currFmPredictor.setAlgorithm("mcmc");
-
-				checkParams(trainFilename, testFilename, predFile_mcmc, &currFmPredictor, bestFmPredictor, &bestResult, paramFile_mcmc);
-			}
-
-			string line = predictionToString(bestFmPredictor, bestResult, iters);
-			
-			appendLineToFile(bestParameterFile_mcmc, line);
-			Logger::getInstance()->log(line, LOG_DEBUG);
-		}
-	}
-	else if (algorithm == "als") {
-		writeToFile(paramFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
-		writeToFile(bestParameterFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "bset_iterations" + delimiter_g + "stdev" + delimiter_g + "regulation");
-		
-		// 20 * 6 * 6 = 720
-		for (int iters = 20; iters <= 400; iters += 20) {
-			currFmPredictor.setIterations(iters);
-
-			for (double stdev = 0.0; stdev <= 1.0; stdev += 0.2) {
-				currFmPredictor.setStdev(stdev);
-
-				for (double reg = 0.0; reg <= 1.0; reg += 0.2) {
-					currFmPredictor.setRegulation(to_string(reg));
-					currFmPredictor.setAlgorithm("als");
-
-					checkParams(trainFilename, testFilename, predFile_als, &currFmPredictor, bestFmPredictor, &bestResult, paramFile_als);
-				}
-			}
-
-			string line = predictionToString(bestFmPredictor, bestResult, iters);
-
-			appendLineToFile(bestParameterFile_als, line);
-			Logger::getInstance()->log(line, LOG_DEBUG);
-		}
-	}
-	else if (algorithm == "sgd") {
-		writeToFile(paramFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
-		writeToFile(bestParameterFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "bset_iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
-		
-		// 20 * 6 * 6 * 21 = 15120
-		for (int iters = 20; iters <= 400; iters += 20) {
-			currFmPredictor.setIterations(iters);
-
-			for (double stdev = 0.0; stdev <= 1.0; stdev += 0.2) {
-				currFmPredictor.setStdev(stdev);
-
-				for (double reg = 0.0; reg <= 1.0; reg += 0.2) {
-					currFmPredictor.setRegulation(to_string(reg));
-
-					for (double lr = 0.0001; lr <= 0.01; lr += 0.0005) {
-						currFmPredictor.setLearningRate(lr);
-						currFmPredictor.setAlgorithm("sgd");
-
-						checkParams(trainFilename, testFilename, predFile_sgd, &currFmPredictor, bestFmPredictor, &bestResult, paramFile_sgd);
-					}
-				}
-			}
-
-			string line = predictionToString(bestFmPredictor, bestResult, iters);
-
-			appendLineToFile(bestParameterFile_sgd, line);
-			Logger::getInstance()->log(line, LOG_DEBUG);
-		}
-	}
 
 
 
-		
-
-	Logger::getInstance()->log("choosing parameters done! got '" + to_string(errorCount) + "' errors!", LOG_DEBUG);
-
-	/*
-	string bestParams = bestFmPredictor.tuningParamsToString();
-	writeToFile(bestParams, "best_parameter.dat");
-	*/
-}
 
 
-
-// runs a bunch of parameter combination for all FM learning algorithms in serial
-TatortFMPredictor fmSerialParameterChoice(string trainFilename, string testFilename) {
-	
-	// run SGD with different tuning params \Theta = {standarddeviation, iterations, regulation, learnrate}
-	// run ALS with different tuning params \Theta = {standarddeviation, iterations, regulation}
-	// run MCMC with different tuning params \Theta = {standarddeviation, iterations}
-
-	Logger::getInstance()->log("experimentally searching for the best model parameter choices ...", LOG_DEBUG);
-
-	int errorCount = 0;
-	
-	TatortFMPredictor bestFmPredictor;
-	TatortFMPredictor currFmPredictor(bestFmPredictor);
-
-
-	string paramFile_sgd = "param_search_sgd.dat";
-	string paramFile_als = "param_search_als.dat";
-	string paramFile_mcmc = "param_search_mcmc.dat";
-
-	string bestParameterFile = "best_param.dat";
-	string bestParameterFile_mcmc = "best_param_mcmc.dat";
-	string bestParameterFile_als = "best_param_als.dat";
-	string bestParameterFile_sgd = "best_param_sgd.dat";
-
-	string predFilename = "pred_result";
-
-	writeToFile(paramFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
-	writeToFile(paramFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
-	writeToFile(paramFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
-
-	double bestResult = numeric_limits<double>::max();
-	//double res;
-
-	runFMParser(trainFilename, testFilename, DATA_UED_TENSOR);
-
-	// 10 * 10 * 10 * 20
-	// 5 * 10 * 5 * 5
-
-	for (int iters = 20; iters <= 400; iters += 20) {
-		currFmPredictor.setIterations(iters);
-
-		for (double stdev = 0.0; stdev <= 1.0; stdev += 0.2) {
-			currFmPredictor.setStdev(stdev);
-			currFmPredictor.setAlgorithm("mcmc");
-
-			checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestFmPredictor, &bestResult, paramFile_mcmc);
-
-			for (double reg = 0.0; reg <= 1.0; reg += 0.2) {
-				currFmPredictor.setRegulation(to_string(reg));
-				currFmPredictor.setAlgorithm("als");
-				
-				checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestFmPredictor, &bestResult, paramFile_als);
-
-				for (double lr = 0.0001; lr <= 0.01; lr += 0.0005) {
-					currFmPredictor.setLearningRate(lr);
-					currFmPredictor.setAlgorithm("sgd");
-					
-					checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestFmPredictor, &bestResult, paramFile_sgd);
-				}
-			}
-		}
-
-		string line = predictionToString(&bestFmPredictor, bestResult, iters);
-		appendLineToFile(bestParameterFile, line);
-	}
-
-
-	Logger::getInstance()->log("choosing parameters done! got '" + to_string(errorCount) + "' errors!", LOG_DEBUG);
-
-	/*
-	string bestParams = bestFmPredictor.tuningParamsToString();
-	writeToFile(bestParams, "best_parameter.dat");
-	*/
-
-	
-
-	return bestFmPredictor;
-
-}
 
 
 
@@ -1049,24 +820,28 @@ void cleanDataset(string filename, int userRatingThreshold) {
 
 // adds user id to tatort db (csv file)
 void addUserIdAndDetectiveId(string filename) {
-	TatortTendencyParser tp;
+	Parser p;
 	try {
-		tp.parseFile(filename + DB_FILE_EXTENSION, delimiter_g, true);
-		tp.addIdColumnToFile(filename + DB_FILE_EXTENSION, 0, "UserID", delimiter_g);
+		p.parseFile(filename + DB_FILE_EXTENSION, delimiter_g, true);
+		p.addIdColumnToFile(filename + DB_FILE_EXTENSION, 0, "UserID", delimiter_g);
 	}
 	catch (MyException e) {
 		cout << e.getErrorMsg() << endl;
 	}
 
-	tp.clear();
+	p.clear();
 	
 	try {
-		tp.parseFile(filename + DB_FILE_EXTENSION, delimiter_g, true);
-		tp.addIdColumnToFile(filename + DB_FILE_EXTENSION, 4, "ErmittlerID", delimiter_g);
+		p.parseFile(filename + DB_FILE_EXTENSION, delimiter_g, true);
+		p.addIdColumnToFile(filename + DB_FILE_EXTENSION, 4, "ErmittlerID", delimiter_g);
 	}
 	catch (MyException e) {
 		cout << e.getErrorMsg() << endl;
 	}
+}
+
+
+void addMissingViewersAndQuotes(string filename) {
 
 }
 
@@ -1094,5 +869,388 @@ bool fileExist(string filename) {
 		return true;
 	else
 		return false;
+}
+
+
+
+int parseCmdLineArguments(int argc, char **argv) {
+	// parsing command line arguments
+	for (int i = 0; i < argc; i++) {
+		//cout << i << " = " << argv[i] << endl;
+		if(!string("-psearch").compare(argv[i])) {
+			parameterSearch_g = true;
+			if(argc > i+1) {
+				numOfThreads_g = stoi(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-ps_algos").compare(argv[i])) {
+			if(argc > i+1) {
+				vector<string> params = StringTokenizer::justTokenize(string(argv[++i]), ",");
+				if(params.size() == 3) {
+					if(stoi(params[0]) == 1) mcmc_g = true;
+					if(stoi(params[1]) == 1) als_g = true;
+					if(stoi(params[2]) == 1) sgd_g = true;
+				}
+				else {
+					Logger::getInstance()->log("wrong param format for option '" + string(argv[i-1]) + "'!", LOG_ERROR);
+					showHelp();
+					return 1;
+				}
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-ps_iter").compare(argv[i])) {
+			if(argc > i+1) {
+				vector<string> params = StringTokenizer::justTokenize(string(argv[++i]), ",");
+				if(params.size() == 3) {
+					iterStart_g = stoi(params[0]);
+					iterStop_g = stoi(params[1]);
+					iterStep_g = stoi(params[2]);
+				}
+				else {
+					Logger::getInstance()->log("wrong param format for option '" + string(argv[i-1]) + "'!", LOG_ERROR);
+					showHelp();
+					return 1;
+				}
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-ps_stdev").compare(argv[i])) {
+			if(argc > i+1) {
+				vector<string> params = StringTokenizer::justTokenize(string(argv[++i]), ",");
+				if(params.size() == 3) {
+					stdevStart_g = stod(params[0]);
+					stdevStop_g = stod(params[1]);
+					stdevStep_g = stod(params[2]);
+				}
+				else {
+					Logger::getInstance()->log("wrong param format for option '" + string(argv[i-1]) + "'!", LOG_ERROR);
+					showHelp();
+					return 1;
+				}
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-ps_reg").compare(argv[i])) {
+			if(argc > i+1) {
+				vector<string> params = StringTokenizer::justTokenize(string(argv[++i]), ",");
+				if(params.size() == 3) {
+					regStart_g = stod(params[0]);
+					regStop_g = stod(params[1]);
+					regStep_g = stod(params[2]);
+				}
+				else {
+					Logger::getInstance()->log("wrong param format for option '" + string(argv[i-1]) + "'!", LOG_ERROR);
+					showHelp();
+					return 1;
+				}
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-ps_lr").compare(argv[i])) {
+			if(argc > i+1) {
+				vector<string> params = StringTokenizer::justTokenize(string(argv[++i]), ",");
+				if(params.size() == 3) {
+					lrStart_g = stod(params[0]);
+					lrStop_g = stod(params[1]);
+					lrStep_g = stod(params[2]);
+				}
+				else {
+					Logger::getInstance()->log("wrong param format for option '" + string(argv[i-1]) + "'!", LOG_ERROR);
+					showHelp();
+					return 1;
+				}
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-ns").compare(argv[i])) {
+			if(argc > i+1) {
+				runScenario_g = true;
+				numOfScenarios_g = stoi(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-stdev").compare(argv[i])) {
+			if(argc > i+1) {
+				initStdev_g = stod(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-reg").compare(argv[i])) {
+			if(argc > i+1) {
+				initReg_g = string(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-lr").compare(argv[i])) {
+			if(argc > i+1) {
+				initLr_g = stod(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-iter").compare(argv[i])) {
+			if(argc > i+1) {
+				initIter_g = stoi(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if(!string("-algo").compare(argv[i])) {
+			if(argc > i+1) {
+				initAlgo_g = string(argv[++i]);
+			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if( (!string("-help").compare(argv[i])) || (!string("-h").compare(argv[i])) ) {
+			//cout << argv[i] << " is present!" << endl;
+			help_g = true;
+		}
+	}
+
+	return 0;
+}
+
+
+
+
+
+
+
+// OLD VERSION --- DONT USE THIS FUNCTION
+// threadfunction: runs a bunch of parameter combinations with only ONE algorithm (per thread)
+void fmParallelParameterChoicePerAlgorithm(string trainFilename, string testFilename, string algorithm, TatortFMPredictor *bestFmPredictor) {
+	Logger::getInstance()->log("experimentally searching for the best model parameter choices ...", LOG_DEBUG);
+
+	int errorCount = 0;
+
+	TatortFMPredictor currFmPredictor;
+
+
+	string paramFile_sgd = "param_search_sgd.dat";
+	string paramFile_als = "param_search_als.dat";
+	string paramFile_mcmc = "param_search_mcmc.dat";
+
+	string bestParameterFile = "best_param.dat";
+	string bestParameterFile_mcmc = "best_param_mcmc.dat";
+	string bestParameterFile_als = "best_param_als.dat";
+	string bestParameterFile_sgd = "best_param_sgd.dat";
+
+	string predFile_sgd = "pred_sgd";
+	string predFile_als = "pred_als";
+	string predFile_mcmc = "pred_mcmc";
+	
+	
+
+	double bestResult = numeric_limits<double>::max();
+
+	//runFMParser(trainFilename, testFilename, delimiter, DATA_UED_TENSOR);
+
+	if (algorithm == "mcmc") {
+		writeToFile(paramFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(bestParameterFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "bset_iterations" + delimiter_g + "stdev");
+		
+		// 20 * 6 = 120
+		for (int iters = 20; iters <= 400; iters += 20) {
+			currFmPredictor.setIterations(iters);
+
+			for (double stdev = 0.0; stdev <= 1.0; stdev += 0.2) {
+				currFmPredictor.setStdev(stdev);
+				currFmPredictor.setAlgorithm("mcmc");
+
+				checkParams(trainFilename, testFilename, predFile_mcmc, &currFmPredictor, bestFmPredictor, &bestResult, paramFile_mcmc);
+			}
+
+			string line = predictionToString(bestFmPredictor, bestResult, iters);
+			
+			appendLineToFile(bestParameterFile_mcmc, line);
+			Logger::getInstance()->log(line, LOG_DEBUG);
+		}
+	}
+	else if (algorithm == "als") {
+		writeToFile(paramFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(bestParameterFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "bset_iterations" + delimiter_g + "stdev" + delimiter_g + "regulation");
+		
+		// 20 * 6 * 6 = 720
+		for (int iters = 20; iters <= 400; iters += 20) {
+			currFmPredictor.setIterations(iters);
+
+			for (double stdev = 0.0; stdev <= 1.0; stdev += 0.2) {
+				currFmPredictor.setStdev(stdev);
+
+				for (double reg = 0.0; reg <= 1.0; reg += 0.2) {
+					currFmPredictor.setRegulation(to_string(reg));
+					currFmPredictor.setAlgorithm("als");
+
+					checkParams(trainFilename, testFilename, predFile_als, &currFmPredictor, bestFmPredictor, &bestResult, paramFile_als);
+				}
+			}
+
+			string line = predictionToString(bestFmPredictor, bestResult, iters);
+
+			appendLineToFile(bestParameterFile_als, line);
+			Logger::getInstance()->log(line, LOG_DEBUG);
+		}
+	}
+	else if (algorithm == "sgd") {
+		writeToFile(paramFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(bestParameterFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "bset_iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		
+		// 20 * 6 * 6 * 21 = 15120
+		for (int iters = 20; iters <= 400; iters += 20) {
+			currFmPredictor.setIterations(iters);
+
+			for (double stdev = 0.0; stdev <= 1.0; stdev += 0.2) {
+				currFmPredictor.setStdev(stdev);
+
+				for (double reg = 0.0; reg <= 1.0; reg += 0.2) {
+					currFmPredictor.setRegulation(to_string(reg));
+
+					for (double lr = 0.0001; lr <= 0.01; lr += 0.0005) {
+						currFmPredictor.setLearningRate(lr);
+						currFmPredictor.setAlgorithm("sgd");
+
+						checkParams(trainFilename, testFilename, predFile_sgd, &currFmPredictor, bestFmPredictor, &bestResult, paramFile_sgd);
+					}
+				}
+			}
+
+			string line = predictionToString(bestFmPredictor, bestResult, iters);
+
+			appendLineToFile(bestParameterFile_sgd, line);
+			Logger::getInstance()->log(line, LOG_DEBUG);
+		}
+	}
+
+
+
+		
+
+	Logger::getInstance()->log("choosing parameters done! got '" + to_string(errorCount) + "' errors!", LOG_DEBUG);
+
+	/*
+	string bestParams = bestFmPredictor.tuningParamsToString();
+	writeToFile(bestParams, "best_parameter.dat");
+	*/
+}
+
+
+
+
+
+// OLD VERSION --- DONT USE THIS FUNCTION
+// runs a bunch of parameter combination for all FM learning algorithms in serial
+TatortFMPredictor fmSerialParameterChoice(string trainFilename, string testFilename) {
+	
+	// run SGD with different tuning params \Theta = {standarddeviation, iterations, regulation, learnrate}
+	// run ALS with different tuning params \Theta = {standarddeviation, iterations, regulation}
+	// run MCMC with different tuning params \Theta = {standarddeviation, iterations}
+
+	Logger::getInstance()->log("experimentally searching for the best model parameter choices ...", LOG_DEBUG);
+
+	int errorCount = 0;
+	
+	TatortFMPredictor bestFmPredictor;
+	TatortFMPredictor currFmPredictor(bestFmPredictor);
+
+
+	string paramFile_sgd = "param_search_sgd.dat";
+	string paramFile_als = "param_search_als.dat";
+	string paramFile_mcmc = "param_search_mcmc.dat";
+
+	string bestParameterFile = "best_param.dat";
+	string bestParameterFile_mcmc = "best_param_mcmc.dat";
+	string bestParameterFile_als = "best_param_als.dat";
+	string bestParameterFile_sgd = "best_param_sgd.dat";
+
+	string predFilename = "pred_result";
+
+	writeToFile(paramFile_mcmc, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+	writeToFile(paramFile_als, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+	writeToFile(paramFile_sgd, "result" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+
+	double bestResult = numeric_limits<double>::max();
+	//double res;
+
+	runFMParser(trainFilename, testFilename, DATA_UED_TENSOR);
+
+	// 10 * 10 * 10 * 20
+	// 5 * 10 * 5 * 5
+
+	for (int iters = 20; iters <= 400; iters += 20) {
+		currFmPredictor.setIterations(iters);
+
+		for (double stdev = 0.0; stdev <= 1.0; stdev += 0.2) {
+			currFmPredictor.setStdev(stdev);
+			currFmPredictor.setAlgorithm("mcmc");
+
+			checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestFmPredictor, &bestResult, paramFile_mcmc);
+
+			for (double reg = 0.0; reg <= 1.0; reg += 0.2) {
+				currFmPredictor.setRegulation(to_string(reg));
+				currFmPredictor.setAlgorithm("als");
+				
+				checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestFmPredictor, &bestResult, paramFile_als);
+
+				for (double lr = 0.0001; lr <= 0.01; lr += 0.0005) {
+					currFmPredictor.setLearningRate(lr);
+					currFmPredictor.setAlgorithm("sgd");
+					
+					checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestFmPredictor, &bestResult, paramFile_sgd);
+				}
+			}
+		}
+
+		string line = predictionToString(&bestFmPredictor, bestResult, iters);
+		appendLineToFile(bestParameterFile, line);
+	}
+
+
+	Logger::getInstance()->log("choosing parameters done! got '" + to_string(errorCount) + "' errors!", LOG_DEBUG);
+
+	/*
+	string bestParams = bestFmPredictor.tuningParamsToString();
+	writeToFile(bestParams, "best_parameter.dat");
+	*/
+
+	
+
+	return bestFmPredictor;
+
 }
 
