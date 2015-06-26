@@ -62,6 +62,116 @@ void Parser::readDBFile(string filename) {
 
 
 
+void Parser::addIdColumnToFile(string outfile, unsigned int columnIndex, string columnHeader, string delimiter) {
+
+
+
+	// create UserIDs from names in source file
+	vector<int> idColumn = createIds(columnIndex);
+
+	Logger::getInstance()->log("writing user IDs and other columns to file '" + outfile + "'...", LOG_DEBUG);
+	ofstream of(outfile);
+	if (!of.is_open()) {
+		Logger::getInstance()->log("cannot open file!", LOG_CRITICAL);
+		throw MyException("EXCEPTION: cannot open file!");
+	}
+
+
+
+	// if headline was parsed, add it to the output file by adding appropriate 'ID'
+	if ((int)_headline.size() == _numOfColumns) {
+		for (unsigned int i = 0; i < _headline.size(); i++) {
+
+			// no delimiter at beginning
+			if (i != 0)
+				of << delimiter;
+
+			// put the ID header in
+			if (i == columnIndex)
+				of << columnHeader << delimiter;
+
+			of << _headline[i];
+		}
+
+		of << endl;
+	}
+
+
+	// add contents to output file by adding new 'ID' column
+	for (int i = 0; i < _numOfDatasets; i++) {
+
+		for (int j = 0; j < _numOfColumns; j++) {
+			// no delimiter at beginning
+			if (j != 0)
+				of << delimiter;
+
+			// put 
+			if (j == (int)columnIndex)
+				of << idColumn[i] << delimiter;
+
+			of << _columns[j][i];
+		}
+
+		if (i < (_numOfDatasets - 1))
+			of << endl;
+
+	}
+
+	Logger::getInstance()->log("writing done!", LOG_DEBUG);
+
+}
+
+
+vector<int> Parser::createIds(unsigned int columnIndex) {
+
+	Logger::getInstance()->log("start creating user IDs ...", LOG_DEBUG);
+
+	if ((int)columnIndex > _numOfColumns)
+		throw MyException("EXCEPTION: index out of bounds!");
+
+	vector<string> dataColumn = getColumn(columnIndex);
+
+	vector<string> data;
+
+	vector<int> idColumn;
+
+	int id;
+	for (unsigned int i = 0; i < dataColumn.size(); i++) {
+		string name = dataColumn[i];
+
+		// transform name to lower case to avoid kind of 'overfitting'
+		transform(name.begin(), name.end(), name.begin(), ::tolower);
+
+		// search current name
+		vector<string>::iterator it = find(data.begin(), data.end(), name);
+
+		// user not already recognized
+		if (it == data.end()) {
+			// add name to data
+			data.push_back(name);
+
+			// remember new id
+			id = data.size() - 1;
+		}
+		else {
+			// the id is the difference from 'it' to 'data.begin()'
+			id = it - data.begin();
+		}
+
+		// add id (start by 1)
+		idColumn.push_back(id + 1);
+	}
+
+	if (idColumn.size() != dataColumn.size())
+		throw MyException("EXCEPTION: column size missmatch");
+
+	Logger::getInstance()->log("creating user IDs done!", LOG_DEBUG);
+	return idColumn;
+}
+
+
+
+
 vector<string> Parser::getColumn(unsigned int index) {
 	if ((int)index < _numOfColumns)
 		return _columns[index];
