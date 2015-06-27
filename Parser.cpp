@@ -91,13 +91,14 @@ void Parser::addMissingViewersAndQuotes(string filename, string delimiter, int v
 		}
 
 		if(_columns[quoteIndex][i] != "NULL") {
+			replace(_columns[quoteIndex][i].begin(), _columns[quoteIndex][i].end(), ',', '.');
 			quoteMean += stod(_columns[quoteIndex][i]);
 			numQuoteValues++;
 		}
 	}
 
 	viewerMean = viewerMean / numViewerValues;
-	quoteMean = viewerMean / numQuoteValues;
+	quoteMean = quoteMean / numQuoteValues;
 
 	Logger::getInstance()->log("updateing columns ...", LOG_DEBUG);
 	int numViewerModified = 0;
@@ -117,7 +118,7 @@ void Parser::addMissingViewersAndQuotes(string filename, string delimiter, int v
 	Logger::getInstance()->log("updated '"+to_string(numViewerModified)+"' viewers and '"+to_string(numQuoteModified)+"' quotes.", LOG_DEBUG);
 
 
-
+	
 	ofstream of(filename);
 	if (!of.is_open()) {
 		Logger::getInstance()->log("cannot open file '"+filename+"'!", LOG_CRITICAL);
@@ -136,8 +137,7 @@ void Parser::addMissingViewersAndQuotes(string filename, string delimiter, int v
 		of << endl;
 	}
 
-
-	// add contents to output file by adding new 'ID' column
+	// add contents to output file
 	for (int i = 0; i < _numOfDatasets; i++) {
 
 		for (int j = 0; j < _numOfColumns; j++) {
@@ -145,12 +145,13 @@ void Parser::addMissingViewersAndQuotes(string filename, string delimiter, int v
 			if (j != 0)
 				of << delimiter;
 
-			of << to_string(_columns[j][i]);
+			of << _columns[j][i];
 		}
 
 		if (i < (_numOfDatasets - 1))
 			of << endl;
 	}
+	
 
 
 	Logger::getInstance()->log("completing viewer and quote column done!", LOG_DEBUG);
