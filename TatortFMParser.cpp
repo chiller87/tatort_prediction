@@ -24,6 +24,158 @@ TatortFMParser::~TatortFMParser() {
 }
 
 
+
+void TatortFMParser::convertDataToTensorPlusAttributes(string inTrainFilename, string inTestFilename, string delimiter, vector<unsigned int> attributeIndices, string outTrainFilename, string outTestFilename, bool isHeaderPresent) {
+	Parser trainParser;
+	Parser testParser;
+
+	// parsing data
+	trainParser.parseFile(inTrainFilename, delimiter, isHeaderPresent);
+	testParser.parseFile(inTestFilename, delimiter, isHeaderPresent);
+
+
+	Logger::getInstance()->log("start converting data to libFM conform format ...", LOG_DEBUG);
+
+	int numTrainData = trainParser.getNumberOfDatasets();
+	int numTestData = testParser.getNumberOfDatasets();
+
+	Logger::getInstance()->log("number of train datasets '" + to_string(numTrainData) + "'", LOG_DEBUG);
+	Logger::getInstance()->log("number of test datasets '" + to_string(numTestData) + "'", LOG_DEBUG);
+
+	if (trainParser.getNumberOfColumns() != testParser.getNumberOfColumns())
+		throw MyException("EXCEPTION: number of columns mismatch between train and test data!");
+
+	if ((numTrainData <= 0) || (numTestData <= 0))
+		throw MyException("EXCEPTION: no datasets to convert!");
+
+	int numOfColumns = trainParser.getNumberOfColumns();
+
+	Logger::getInstance()->log("number of columns '" + to_string(numOfColumns) + "'", LOG_DEBUG);
+
+
+	// query all important data
+	vector<string> trainRatings = trainParser.getColumn(numOfColumns - 1);
+	vector<string> trainUserIds = trainParser.getColumn(0);
+	vector<string> trainEpisodeIds = trainParser.getColumn(2);
+	vector<string> trainDetectiveIds = trainParser.getColumn(4);
+	vector<vector<string> > trainAttributes;
+	
+
+	Logger::getInstance()->log("train data initialized", LOG_DEBUG);
+
+	vector<string> testRatings = testParser.getColumn(numOfColumns - 1);
+	vector<string> testUserIds = testParser.getColumn(0);
+	vector<string> testEpisodeIds = testParser.getColumn(2);
+	vector<string> testDetectiveIds = testParser.getColumn(4);
+	vector<vector<string> > testAttributes;
+
+	Logger::getInstance()->log("test data initialized", LOG_DEBUG);
+
+	for (unsigned int i = 0; i < attributeIndices.size(); i++) {
+		trainAttributes.push_back(trainParser.getColumn(attributeIndices[i]));
+		testAttributes.push_back(testParser.getColumn(attributeIndices[i]));
+	}
+
+		
+
+	int maxUserId = max(stoi(trainUserIds[0]), stoi(testUserIds[0]));
+	int maxEpisodeId = max(stoi(trainEpisodeIds[0]), stoi(testEpisodeIds[0]));
+	int maxDetectiveId = max(stoi(trainDetectiveIds[0]), stoi(trainDetectiveIds[0]));
+
+	Logger::getInstance()->log("max variables initialized", LOG_DEBUG);
+
+	int maxNumDatasets = max(numTestData, numTrainData);
+
+
+
+	// looking for max Ids
+	for (int i = 1; i < maxNumDatasets; i++) {
+
+		//Logger::getInstance()->log("iteration '"+ to_string(i) +"'", LOG_DEBUG);
+
+		if (i < numTrainData) {
+			maxUserId = max(maxUserId, stoi(trainUserIds[i]));
+			maxEpisodeId = max(maxEpisodeId, stoi(trainEpisodeIds[i]));
+			maxDetectiveId = max(maxDetectiveId, stoi(trainDetectiveIds[i]));
+		}
+
+		//Logger::getInstance()->log("train done!", LOG_DEBUG);
+
+		if (i < numTestData) {
+			//Logger::getInstance()->log("numTestData = '"+ to_string(numTestData) +"' and i = '"+ to_string(i) +"'", LOG_DEBUG);
+			maxUserId = max(maxUserId, stoi(testUserIds[i]));
+			maxEpisodeId = max(maxEpisodeId, stoi(testEpisodeIds[i]));
+			maxDetectiveId = max(maxDetectiveId, stoi(testDetectiveIds[i]));
+		}
+	}
+
+
+	Logger::getInstance()->log("max ids computed", LOG_DEBUG);
+
+
+
+
+	ofstream ofTrain(outTrainFilename);
+	if (!ofTrain.is_open())
+		throw MyException("EXCEPTION: could not open file '" + outTrainFilename + "'!");
+
+
+	ofstream ofTest(outTestFilename);
+	if (!ofTest.is_open())
+		throw MyException("EXCEPTION: could not open file '" + outTestFilename + "'!");
+
+	Logger::getInstance()->log("output files successfully opened", LOG_DEBUG);
+
+
+	// computing index ranges
+	int userOffset = 0;
+	int episodeOffset = maxUserId;
+	int detectiveOffset = episodeOffset + maxEpisodeId;
+	int attributeIndexStart = detectiveOffset + maxDetectiveId;
+	
+	// writing data in libfm conform format to file
+	for (int i = 0; i < maxNumDatasets; i++)
+	{
+
+		if (i < numTrainData) {
+			ofTrain << stod(trainRatings[i]) << " ";
+			ofTrain << (userOffset + stoi(trainUserIds[i])) << ":1 ";
+			ofTrain << (episodeOffset + stoi(trainEpisodeIds[i])) << ":1 ";
+			ofTrain << (detectiveOffset + stoi(trainDetectiveIds[i])) << ":1 ";
+			
+			for (unsigned int attr = 0; attr < trainAttributes.size(); attr++) {
+				ofTrain << (attributeIndexStart + attr) << ":" << trainAttributes[attr][i] << " ";
+			}
+			
+			/*ofTrain << (viewerIndex) << ":" << trainViewers[i] << " ";
+			ofTrain << (quoteIndex) << ":" << trainQuotes[i] << " ";
+			ofTrain << (episodeIndex) << ":" << trainEpisodeIds[i] << " ";*/
+			
+			ofTrain << endl;
+		}
+
+		if (i < numTestData) {
+			ofTest << stod(testRatings[i]) << " ";
+			ofTest << (userOffset + stoi(testUserIds[i])) << ":1 ";
+			ofTest << (episodeOffset + stoi(testEpisodeIds[i])) << ":1 ";
+			ofTest << (detectiveOffset + stoi(testDetectiveIds[i])) << ":1 ";
+
+			for (unsigned int attr = 0; attr < trainAttributes.size(); attr++) {
+				ofTest << (attributeIndexStart + attr) << ":" << testAttributes[attr][i] << " ";
+			}
+
+			/*ofTest << (viewerIndex) << ":" << testViewers[i] << " ";
+			ofTest << (quoteIndex) << ":" << testQuotes[i] << " ";
+			ofTest << (episodeIndex) << ":" << testEpisodeIds[i] << " ";*/
+			
+			ofTest << endl;
+		}
+	}
+
+	Logger::getInstance()->log("converting data to libFM conform format done!", LOG_DEBUG);
+}
+
+
 void TatortFMParser::convertDataToTensor(string inTrainFilename, string inTestFilename, string delimiter, string outTrainFilename, string outTestFilename, bool isHeaderPresent) {
 
 	Parser trainParser;
