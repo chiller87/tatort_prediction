@@ -52,6 +52,7 @@ using namespace std;
 #define DATA_UE_MATRIX 1
 // LIBFM data as User-Episode-Detective tensor
 #define DATA_UED_TENSOR 2
+#define DATA_UED_TENSOR_PLUS_ATTRIBUTES 3
 
 
 // file extension of DB files
@@ -75,7 +76,6 @@ mutex alsFileMutex_g;
 mutex mcmcFileMutex_g;
 
 
-
 // global definitions of filename parts
 string dbPrefix_g = "tatortdb";
 string dbCleanPrefix_g = "tatortdb_clean";
@@ -86,26 +86,33 @@ string targetSuffix_g = "_target";
 string delimiter_g = "|";
 
 
-// global definitions used for parameter search
-int iterStart_g = 20, iterStop_g = 100, iterStep_g = 20;
-double stdevStart_g = 0.0, stdevStop_g = 5.0, stdevStep_g = 1.0;
-double regStart_g = 0.0, regStop_g = 50.0, regStep_g = 10.0;
-double lrStart_g = 0.0001, lrStop_g = 0.001, lrStep_g = 0.0001;
-unsigned int numOfThreads_g = 2;
-bool mcmc_g = false, sgd_g = false, als_g = false;
-
-
 // global definitions used to determine, what action to be performed
 bool help_g = false;
 bool parameterSearch_g = false;
 bool runScenario_g = false;
 
 
+// global definitions used for parameter search
+int iterStart_g = 50, iterStop_g = 400, iterStep_g = 50;
+double stdevStart_g = 0.0, stdevStop_g = 5, stdevStep_g = 0.5;
+double regStart_g = 0.0, regStop_g = 1.0, regStep_g = 0.2;
+double lrStart_g = 0.0001, lrStop_g = 0.001, lrStep_g = 0.0001;
+unsigned int numOfThreads_g = 4;
+bool mcmc_g = false, sgd_g = false, als_g = false;
+
+
 // global definitions used for scenario testing
-double initStdev_g = 0.0, initLr_g = 0.01;
+double initStdev_g = 0.0, initLr_g = 0.05;
 int initIter_g = 20;
-string initAlgo_g = "mcmc", initReg_g = "0";
-unsigned int numOfScenarios_g = 2;
+string initAlgo_g = "mcmc", initReg_g = "1.0";
+unsigned int numOfScenarios_g = 3;
+vector<unsigned int> attributeIndicesToUse_g;
+
+
+
+
+
+
 
 
 
@@ -118,15 +125,18 @@ void cleanDataset(string filename, int userRatingThreshold);
 void divideDataIntoTrainAndTestData(string sourceFilename, int count, int trainPercentage);
 void completeViewersAndQuotes(string filename, int viewerIndex, int quoteIndex);
 
+
 // file operations
 void writeToFile(string filename, string text);
 void appendLineToFile(string filename, string text);
 bool fileExist(string filename);
 
+
 // to string operations
 string resultsToStringHuman(map<string, vector<double> >* predictionResults, vector<string>* methods);
 string resultsToString(map<string, vector<double> >* predictionResults, vector<string>* methods);
 string predictionToString(TatortFMPredictor *bestFmPredictor, double bestResult, int currIter);
+
 
 // parsing
 void runFMParser(string trainFilename, string testFilename, int dataRepresentation);
@@ -139,14 +149,16 @@ double tendencyTrainAndTest(string trainFilename, string testFilename, string pr
 double fmTrainAndTest(string trainFilename, string testFilename, string predFilename, TatortFMPredictor fmPredictor, int dataRepresentation);
 void testScenario(string scenarioName, vector<double>* prediction, TatortFMPredictor fmPredictor);
 
+
 // searching for best parameters
+void fmParallelParameterChoice(string trainFilename, string testFilename, ThreadData_t *td);
 // deprecated
 void fmParallelParameterChoicePerAlgorithm(string trainFilename, string testFilename, string algorithm, TatortFMPredictor *bestFmPredictor);
-void fmParallelParameterChoice(string trainFilename, string testFilename, ThreadData_t *td);
 // deprecated
 TatortFMPredictor fmSerialParameterChoice(string trainFilename, string testFilename);
 void checkParams(string trainFilename, string testFilename, string predFilename, TatortFMPredictor *currFmPredictor, TatortFMPredictor *bestFmPredictor, double *bestResult, string outFilename, mutex *fileMutex = NULL);
 void searchingOptimalParams(string scenario, unsigned int numOfThreads = 1);
+
 
 // output
 void showHelp();
@@ -178,6 +190,7 @@ void showHelp() {
 	cout << "-----------------------------------------------------------------------------" << endl;
 	cout << endl << "options used for testing scenarios:" << endl;
 	cout << setw(columnWidthOption) << "-ns" << setw(columnWidthParam) << "n"<< "\trun test for 'n' different scenarios" << endl;
+	cout << setw(columnWidthOption) << "-attr" << setw(columnWidthParam) << "n,n,..." << "\twhat attributes should be used in tensor+attributes scenario (indices of columns)" << endl;
 	cout << setw(columnWidthOption) << "-algo" << setw(columnWidthParam) << "str"<< "\trun test with algorithm 'str' (either 'mcmc', 'sgd' or 'als')" << endl;
 	cout << setw(columnWidthOption) << "-iter"<< setw(columnWidthParam) << "n" << "\tset max iterations the test schould be run with" << endl;
 	cout << setw(columnWidthOption) << "-stdev"<< setw(columnWidthParam) << "d" << "\tchoose standard deviation of 'd' initializing FM params" << endl;
@@ -218,26 +231,15 @@ int main(int argc, char **argv) {
 	// init logger
 	Logger::getInstance()->setVerbosityLevel(LOG_DEBUG);
 
+	srand(time(NULL));
+
+	// initialize attributes to use for tensor-plus-attribute scenario (will be cleared, if cmd line option '-attr' is present)
+	attributeIndicesToUse_g.push_back(2);
+	attributeIndicesToUse_g.push_back(8);
+	attributeIndicesToUse_g.push_back(9);
 
 	parseCmdLineArguments(argc, argv);
 
-	
-
-	
-
-
-	srand(time(NULL));
-
-
-	
-	//addUserIdAndDetectiveId(dbCleanPrefix_g);
-
-	
-	
-
-
-	
-	
 	// show help menu
 	if(help_g) {
 		showHelp();
@@ -293,10 +295,11 @@ int main(int argc, char **argv) {
 		// initialize vector with column headings for result representation
 		vector<string> methods;
 		methods.push_back("TB");
-		methods.push_back("FM (Matrix)");
-		methods.push_back("FM (Tensor)");
+		methods.push_back("FM_mat");
+		methods.push_back("FM_ten");
+		methods.push_back("FM_ten_attr");
 
-
+		// initialize FM tuning parameters to run
 		TatortFMPredictor fmPredictor;
 		fmPredictor.setAlgorithm(initAlgo_g);
 		fmPredictor.setIterations(initIter_g);
@@ -316,12 +319,12 @@ int main(int argc, char **argv) {
 		strResults = resultsToString(&scenarioResults, &methods);
 		writeToFile("scenario_results.csv", strResults);
 		
-		cout << strResults << endl;
+		//cout << strResults << endl;
 	
 	}
 	else {
 		
-		// these methods should be called on a 'fresh' dataset (without user and detective id)
+		// these methods should be called on a 'fresh' dataset (without user and detective ids)
 		//unsigned int userIndex = 0;
 		//addIdColumn(dbPrefix_g, userIndex, "UserID");
 		//unsigned int detectiveIndex = 4;
@@ -503,66 +506,71 @@ void fmParallelParameterChoice(string trainFilename, string testFilename, Thread
 
 	// 10 * 10 * 10 * 20
 	// 5 * 10 * 5 * 5
+	if (mcmc_g || als_g || sgd_g) {
+		for (int iters = td->iterStart; iters <= td->iterStop; iters += td->iterStep) {
+			TatortFMPredictor currFmPredictor;
+			TatortFMPredictor bestAlsPredictor;
+			TatortFMPredictor bestSgdPredictor;
+			TatortFMPredictor bestMcmcPredictor;
 
-	for (int iters = td->iterStart; iters <= td->iterStop; iters += td->iterStep) {
-		TatortFMPredictor currFmPredictor;
-		TatortFMPredictor bestAlsPredictor;
-		TatortFMPredictor bestSgdPredictor;
-		TatortFMPredictor bestMcmcPredictor;
+			double bestAlsResult = numeric_limits<double>::max();
+			double bestSgdResult = numeric_limits<double>::max();
+			double bestMcmcResult = numeric_limits<double>::max();
 
-		double bestAlsResult = numeric_limits<double>::max();
-		double bestSgdResult = numeric_limits<double>::max();
-		double bestMcmcResult = numeric_limits<double>::max();
-		
-		currFmPredictor.setIterations(iters);
+			currFmPredictor.setIterations(iters);
 
-		for (double stdev = stdevStart_g; stdev <= stdevStop_g; stdev += stdevStep_g) {
-			currFmPredictor.setStdev(stdev);
-			currFmPredictor.setAlgorithm("mcmc");
+			for (double stdev = stdevStart_g; stdev <= stdevStop_g; stdev += stdevStep_g) {
+				currFmPredictor.setStdev(stdev);
+				currFmPredictor.setAlgorithm("mcmc");
 
-			checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestMcmcPredictor, &bestMcmcResult, paramFile_mcmc, &mcmcFileMutex_g);
+				if (mcmc_g)
+					checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestMcmcPredictor, &bestMcmcResult, paramFile_mcmc, &mcmcFileMutex_g);
 
-			for (double reg = regStart_g; reg <= regStop_g; reg += regStep_g) {
-				currFmPredictor.setRegulation(to_string(reg));
-				currFmPredictor.setAlgorithm("als");
+				if (als_g || sgd_g) {
+					for (double reg = regStart_g; reg <= regStop_g; reg += regStep_g) {
+						currFmPredictor.setRegulation(to_string(reg));
+						currFmPredictor.setAlgorithm("als");
 
-				checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestAlsPredictor, &bestAlsResult, paramFile_als, &alsFileMutex_g);
+						if (als_g)
+							checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestAlsPredictor, &bestAlsResult, paramFile_als, &alsFileMutex_g);
 
-				if(sgd_g) {
-					for (double lr = lrStart_g; lr <= lrStop_g; lr += lrStep_g) {
-						currFmPredictor.setLearningRate(lr);
-						currFmPredictor.setAlgorithm("sgd");
+						if (sgd_g) {
+							for (double lr = lrStart_g; lr <= lrStop_g; lr += lrStep_g) {
+								currFmPredictor.setLearningRate(lr);
+								currFmPredictor.setAlgorithm("sgd");
 
-						checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestSgdPredictor, &bestSgdResult, paramFile_sgd, &sgdFileMutex_g);
+								checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestSgdPredictor, &bestSgdResult, paramFile_sgd, &sgdFileMutex_g);
+							}
+						}
 					}
 				}
 			}
+
+			string line;
+
+			if (mcmc_g) {
+				line = predictionToString(&bestMcmcPredictor, bestMcmcResult, -1);
+				mcmcFileMutex_g.lock();
+				appendLineToFile(bestParameterFile_mcmc, line);
+				mcmcFileMutex_g.unlock();
+			}
+
+			if (als_g) {
+				line = predictionToString(&bestAlsPredictor, bestAlsResult, -1);
+				alsFileMutex_g.lock();
+				appendLineToFile(bestParameterFile_als, line);
+				alsFileMutex_g.unlock();
+			}
+
+			if (sgd_g) {
+				line = predictionToString(&bestSgdPredictor, bestSgdResult, -1);
+				sgdFileMutex_g.lock();
+				appendLineToFile(bestParameterFile_sgd, line);
+				sgdFileMutex_g.unlock();
+			}
+
+
 		}
-
-		string line;
-		
-		if(mcmc_g) {
-			line = predictionToString(&bestMcmcPredictor, bestMcmcResult, -1);
-			mcmcFileMutex_g.lock();
-			appendLineToFile(bestParameterFile_mcmc, line);
-			mcmcFileMutex_g.unlock();
-		}
-
-		if(als_g) {
-			line = predictionToString(&bestAlsPredictor, bestAlsResult, -1);
-			alsFileMutex_g.lock();
-			appendLineToFile(bestParameterFile_als, line);
-			alsFileMutex_g.unlock();
-		}
-
-		if(sgd_g) {
-			line = predictionToString(&bestSgdPredictor, bestSgdResult, -1);
-			sgdFileMutex_g.lock();
-			appendLineToFile(bestParameterFile_sgd, line);
-			sgdFileMutex_g.unlock();
-		}
-
-
 	}
 
 
@@ -743,6 +751,7 @@ void testScenario(string scenarioName, vector<double>* prediction, TatortFMPredi
 
 	prediction->push_back(fmTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g, fmPredictor, DATA_UE_MATRIX));
 	prediction->push_back(fmTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g, fmPredictor, DATA_UED_TENSOR));
+	prediction->push_back(fmTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g, fmPredictor, DATA_UED_TENSOR_PLUS_ATTRIBUTES));
 
 	Logger::getInstance()->log("done with scenario '"+ scenarioName +"' ...", LOG_DEBUG);
 }
@@ -753,10 +762,10 @@ double fmTrainAndTest(string trainFilename, string testFilename, string predFile
 
 	double res = -1;
 
-	if(!fileExist(trainFilename+LIBFM_FILE_EXTENSION) || !fileExist(testFilename+LIBFM_FILE_EXTENSION))
+	//if(!fileExist(trainFilename+LIBFM_FILE_EXTENSION) || !fileExist(testFilename+LIBFM_FILE_EXTENSION))
 		runFMParser(trainFilename, testFilename, dataRepresentation);
-	else
-		Logger::getInstance()->log("files "+trainFilename+LIBFM_FILE_EXTENSION+" and "+testFilename+LIBFM_FILE_EXTENSION+" already exist. skipping creating and parsing them!", LOG_INFO);
+	//else
+	//	Logger::getInstance()->log("files "+trainFilename+LIBFM_FILE_EXTENSION+" and "+testFilename+LIBFM_FILE_EXTENSION+" already exist. skipping creating and parsing them!", LOG_INFO);
 
 	res = runFMPredictor(trainFilename, testFilename, predFilename, fmPredictor);
 	
@@ -783,6 +792,10 @@ void runFMParser(string inTrainFilename, string inTestFilename, int dataRepresen
 
 	case DATA_UED_TENSOR:
 		fmParser.convertDataToTensor(inTrainFilename + DB_FILE_EXTENSION, inTestFilename + DB_FILE_EXTENSION, delimiter_g, outTrainFilename + LIBFM_FILE_EXTENSION, outTestFilename + LIBFM_FILE_EXTENSION, true);
+		break;
+		
+	case DATA_UED_TENSOR_PLUS_ATTRIBUTES:
+		fmParser.convertDataToTensorPlusAttributes(inTrainFilename + DB_FILE_EXTENSION, inTestFilename + DB_FILE_EXTENSION, delimiter_g, attributeIndicesToUse_g, outTrainFilename + LIBFM_FILE_EXTENSION, outTestFilename + LIBFM_FILE_EXTENSION, true);
 		break;
 
 	default:
@@ -909,7 +922,9 @@ bool fileExist(string filename) {
 int parseCmdLineArguments(int argc, char **argv) {
 	// parsing command line arguments
 	for (int i = 0; i < argc; i++) {
-		//cout << i << " = " << argv[i] << endl;
+		
+
+		// parameter choice
 		if(!string("-psearch").compare(argv[i])) {
 			parameterSearch_g = true;
 			if(argc > i+1) {
@@ -1015,11 +1030,27 @@ int parseCmdLineArguments(int argc, char **argv) {
 				return 1;
 			}
 		}
+
+
+		// scenario testing
 		else if(!string("-ns").compare(argv[i])) {
 			if(argc > i+1) {
 				runScenario_g = true;
 				numOfScenarios_g = stoi(argv[++i]);
 			} else {
+				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
+				showHelp();
+				return 1;
+			}
+		}
+		else if (!string("-attr").compare(argv[i])) {
+			if (argc > i + 1) {
+				attributeIndicesToUse_g.clear();
+				vector<string> params = StringTokenizer::justTokenize(string(argv[++i]), ",");
+				for (unsigned int i = 0; i < params.size(); i++)
+					attributeIndicesToUse_g.push_back(stoi(params[i]));
+			}
+			else {
 				Logger::getInstance()->log("missing param for option '" + string(argv[i]) + "'!", LOG_ERROR);
 				showHelp();
 				return 1;
