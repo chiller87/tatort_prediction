@@ -133,8 +133,8 @@ bool fileExist(string filename);
 
 
 // to string operations
-string resultsToStringHuman(map<string, vector<double> >* predictionResults, vector<string>* methods);
-string resultsToString(map<string, vector<double> >* predictionResults, vector<string>* methods);
+string resultsToStringHuman(map<string, vector<double> >* predictionResults, vector<string>* methods, vector<double> means);
+string resultsToString(map<string, vector<double> >* predictionResults, vector<string>* methods, vector<double> means);
 string predictionToString(TatortFMPredictor *bestFmPredictor, double bestResult, int currIter);
 
 
@@ -159,6 +159,9 @@ TatortFMPredictor fmSerialParameterChoice(string trainFilename, string testFilen
 void checkParams(string trainFilename, string testFilename, string predFilename, TatortFMPredictor *currFmPredictor, TatortFMPredictor *bestFmPredictor, double *bestResult, string outFilename, mutex *fileMutex = NULL);
 void searchingOptimalParams(string scenario, unsigned int numOfThreads = 1);
 
+
+// statistics
+vector<double> computeMeanForResults(map<string, vector<double> >* predictionResults);
 
 // output
 void showHelp();
@@ -313,10 +316,14 @@ int main(int argc, char **argv) {
 		}
 
 
-		string strResults = resultsToStringHuman(&scenarioResults, &methods);
+		vector<double> means = computeMeanForResults(&scenarioResults);
+		
+
+
+		string strResults = resultsToStringHuman(&scenarioResults, &methods, &means);
 		writeToFile("scenario_results.dat", strResults);
 		Logger::getInstance()->log(strResults, LOG_INFO);
-		strResults = resultsToString(&scenarioResults, &methods);
+		strResults = resultsToString(&scenarioResults, &methods, &means);
 		writeToFile("scenario_results.csv", strResults);
 		
 		//cout << strResults << endl;
@@ -345,6 +352,34 @@ int main(int argc, char **argv) {
 }
 
 
+
+vector<double> computeMeanForResults(map<string, vector<double> >* predictionResults) {
+
+	vector<double> means;
+	map<string, vector<double> >::iterator scenarioIter = predictionResults->begin();
+	if (scenarioIter == predictionResults->end())
+		return means;
+
+	int numberOfScenarios = 0;
+	for (unsigned int i = 0; i < scenarioIter->second.size(); i++) {
+		means.push_back(scenarioIter->second[i]);
+	}
+	numberOfScenarios++;
+
+	for (++scenarioIter; scenarioIter != predictionResults->end(); scenarioIter++) {
+		for (unsigned int i = 0; i < scenarioIter->second.size(); i++) {
+			means[i] += scenarioIter->second[i];
+		}
+		numberOfScenarios++;
+	}
+
+	for (unsigned i = 0; i < means.size(); i++) {
+		means[i] /= numberOfScenarios;
+	}
+
+	return means;
+
+}
 
 
 
@@ -669,7 +704,7 @@ void writeToFile(string filename, string text) {
 
 
 // creates a string with results of all test scenarios (human readable)
-string resultsToStringHuman(map<string, vector<double> >* predictionResults, vector<string>* methods) {
+string resultsToStringHuman(map<string, vector<double> >* predictionResults, vector<string>* methods, vector<double>* means) {
 	map<string, vector<double> >::iterator pqIter;
 
 	int scenarioColumnWidth = 20;
@@ -704,12 +739,21 @@ string resultsToStringHuman(map<string, vector<double> >* predictionResults, vec
 		os << endl;
 	}
 
+	os << setw(scenarioColumnWidth) << "means";
+	for (unsigned int i = 0; i < means->size(); i++)
+	{
+		os << setw(columnWidth) << (*means)[i];
+	}
+
+	os << endl;
+
+
 	return os.str();
 }
 
 
 // creates a string with results of all test scenarios
-string resultsToString(map<string, vector<double> >* predictionResults, vector<string>* methods) {
+string resultsToString(map<string, vector<double> >* predictionResults, vector<string>* methods, vector<double>* means) {
 	map<string, vector<double> >::iterator pqIter;
 
 	//int scenarioColumnWidth = 20;
@@ -736,6 +780,16 @@ string resultsToString(map<string, vector<double> >* predictionResults, vector<s
 		}
 		os << endl;
 	}
+
+	os << "means" << delimiter_g;
+	for (unsigned int i = 0; i < means->size(); i++)
+	{
+		os << (*means)[i];
+		if (i != means->size() - 1)
+			os << delimiter_g;
+	}
+
+	os << endl;
 
 	return os.str();
 }
