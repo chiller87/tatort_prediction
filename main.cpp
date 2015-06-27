@@ -57,7 +57,7 @@ using namespace std;
 // file extension of DB files
 #define DB_FILE_EXTENSION ".db"
 // file extension of libfm files
-#define LIBFM_FILE_EXTENSION ".libfm 
+#define LIBFM_FILE_EXTENSION ".libfm"
 
 
 
@@ -320,14 +320,14 @@ int main(int argc, char **argv) {
 	
 	}
 	else {
-		/*
-		// this methods should be called on a 'fresh' dataset (without user and detective id)
-		unsigned int userIndex = 0;
-		addIdColumn(dbPrefix_g, userIndex, "UserID");
-		unsigned int detectiveIndex = 4;
-		addIdColumn(dbPrefix_g, detectiveIndex, "ErmittlerID");
-		completeViewersAndQuotes(dbPrefix_g, 8, 9);
-		*/
+		
+		// these methods should be called on a 'fresh' dataset (without user and detective id)
+		//unsigned int userIndex = 0;
+		//addIdColumn(dbPrefix_g, userIndex, "UserID");
+		//unsigned int detectiveIndex = 4;
+		//addIdColumn(dbPrefix_g, detectiveIndex, "ErmittlerID");
+		//completeViewersAndQuotes(dbPrefix_g, 8, 9);
+		
 	}
 
 	clock_t end = clock();
