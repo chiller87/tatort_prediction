@@ -57,7 +57,7 @@ using namespace std;
 // file extension of DB files
 #define DB_FILE_EXTENSION ".db"
 // file extension of libfm files
-#define LIBFM_FILE_EXTENSION ".libfm"
+#define LIBFM_FILE_EXTENSION ".libfm 
 
 
 
@@ -110,7 +110,9 @@ unsigned int numOfScenarios_g = 2;
 
 
 // modifying DB data
+// deprecated
 void addUserIdAndDetectiveId(string filename);
+void addIdColumn(string filename, unsigned int columnId, string newColumnTitel);
 void parseMapsAndWriteToFile(string filename);
 void cleanDataset(string filename, int userRatingThreshold);
 void divideDataIntoTrainAndTestData(string sourceFilename, int count, int trainPercentage);
@@ -318,7 +320,14 @@ int main(int argc, char **argv) {
 	
 	}
 	else {
+		/*
+		// this methods should be called on a 'fresh' dataset (without user and detective id)
+		unsigned int userIndex = 0;
+		addIdColumn(dbPrefix_g, userIndex, "UserID");
+		unsigned int detectiveIndex = 4;
+		addIdColumn(dbPrefix_g, detectiveIndex, "ErmittlerID");
 		completeViewersAndQuotes(dbPrefix_g, 8, 9);
+		*/
 	}
 
 	clock_t end = clock();
@@ -824,7 +833,19 @@ void cleanDataset(string filename, int userRatingThreshold) {
 
 
 
+void addIdColumn(string filename, unsigned int columnId, string newColumnTitel) {
+	Parser p;
+	try {
+		p.parseFile(filename + DB_FILE_EXTENSION, delimiter_g, true);
+		p.addIdColumnToFile(filename + DB_FILE_EXTENSION, columnId, newColumnTitel, delimiter_g);
+	}
+	catch (MyException e) {
+		cout << e.getErrorMsg() << endl;
+	}
+}
+
 // adds user id to tatort db (csv file)
+// deprecated: should NOT be used any more
 void addUserIdAndDetectiveId(string filename) {
 	Parser p;
 	try {
