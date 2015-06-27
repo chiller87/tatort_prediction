@@ -247,7 +247,7 @@ int main(int argc, char **argv) {
 	// searching for the best parameters
 	else if(parameterSearch_g) {
 
-		string scenario = dbCleanPrefix_g + "_1";
+		string scenario = dbPrefix_g;
 		try {
 			searchingOptimalParams(scenario, numOfThreads_g);
 		} catch(MyException e) {
@@ -347,11 +347,13 @@ int main(int argc, char **argv) {
 
 
 
-
-
 // initiates parameter testing for the given scenario. the number of threads given determines if the serial (1 or lower) or parallel (> 1) variant is used
 void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 	if (numOfThreads >= 1) {
+
+		divideDataIntoTrainAndTestData(scenario, 1, 80);
+		scenario += "_1";
+		runFMParser(scenario+trainSuffix_g, scenario+testSuffix_g, DATA_UED_TENSOR);
 
 		if(!fileExist(scenario+trainSuffix_g+LIBFM_FILE_EXTENSION))
 			throw MyException("file '"+scenario+trainSuffix_g+LIBFM_FILE_EXTENSION+"' does not exist!");
