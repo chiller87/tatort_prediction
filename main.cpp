@@ -114,6 +114,7 @@ void addUserIdAndDetectiveId(string filename);
 void parseMapsAndWriteToFile(string filename);
 void cleanDataset(string filename, int userRatingThreshold);
 void divideDataIntoTrainAndTestData(string sourceFilename, int count, int trainPercentage);
+void completeViewersAndQuotes(string filename, int viewerIndex, int quoteIndex);
 
 // file operations
 void writeToFile(string filename, string text);
@@ -137,8 +138,10 @@ double fmTrainAndTest(string trainFilename, string testFilename, string predFile
 void testScenario(string scenarioName, vector<double>* prediction, TatortFMPredictor fmPredictor);
 
 // searching for best parameters
+// deprecated
 void fmParallelParameterChoicePerAlgorithm(string trainFilename, string testFilename, string algorithm, TatortFMPredictor *bestFmPredictor);
 void fmParallelParameterChoice(string trainFilename, string testFilename, ThreadData_t *td);
+// deprecated
 TatortFMPredictor fmSerialParameterChoice(string trainFilename, string testFilename);
 void checkParams(string trainFilename, string testFilename, string predFilename, TatortFMPredictor *currFmPredictor, TatortFMPredictor *bestFmPredictor, double *bestResult, string outFilename, mutex *fileMutex = NULL);
 void searchingOptimalParams(string scenario, unsigned int numOfThreads = 1);
@@ -225,7 +228,7 @@ int main(int argc, char **argv) {
 
 
 	
-	addUserIdAndDetectiveId(dbCleanPrefix_g);
+	//addUserIdAndDetectiveId(dbCleanPrefix_g);
 
 	
 	
@@ -313,6 +316,9 @@ int main(int argc, char **argv) {
 		
 		cout << strResults << endl;
 	
+	}
+	else {
+		completeViewersAndQuotes(dbPrefix_g, 8, 9);
 	}
 
 	clock_t end = clock();
@@ -841,9 +847,15 @@ void addUserIdAndDetectiveId(string filename) {
 }
 
 
-void addMissingViewersAndQuotes(string filename) {
 
+void completeViewersAndQuotes(string filename, int viewerIndex, int quoteIndex) {
+	Parser p;
+
+
+	p.addMissingViewersAndQuotes(filename+DB_FILE_EXTENSION, delimiter_g, viewerIndex, quoteIndex);
+	
 }
+
 
 
 // randomly selects trainpercentage entries from database and assumes that these are train data. the rest is assumed to be test data.
