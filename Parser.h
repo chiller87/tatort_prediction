@@ -37,6 +37,7 @@ public:
 
 	void addUserIdToFile(string outfile, unsigned int userColumnIndex);
 	void addIdColumnToFile(string outfile, unsigned int columnIndex, string columnHeader, string delimiter);
+	void addMissingViewersAndQuotes(string filename, string delimiter, int viewerIndex, int quoteIndex);
 
 	virtual void divideLinesTrainAndTest(string sourceFilename, bool isHeaderPresent, double trainPercentage, string trainFilename, string testFilename, string predictionTargetFilename);
 	virtual int getNumberOfDatasets();

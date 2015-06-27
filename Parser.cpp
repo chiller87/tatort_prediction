@@ -50,6 +50,7 @@ void Parser::readDBFile(string filename) {
 	string line;
 	while (getline(infile, line))
 	{
+		//Logger::getInstance()->log(line, LOG_DEBUG);
 		_lines.push_back(line);
 	}
 
@@ -59,6 +60,102 @@ void Parser::readDBFile(string filename) {
 	Logger::getInstance()->log("reading lines done!", LOG_DEBUG);
 }
 
+
+
+void Parser::addMissingViewersAndQuotes(string filename, string delimiter, int viewerIndex, int quoteIndex) {
+
+
+	Logger::getInstance()->log("start completing viewer and quote column ...", LOG_DEBUG);
+
+	parseFile(filename, delimiter, true);
+
+	vector<string> vec;
+
+	string s("|NULL|");
+	vec.push_back(s.substr(1, 4));
+	Logger::getInstance()->log("created string: "+vec[0], LOG_DEBUG);
+
+	Logger::getInstance()->log("computing means ...", LOG_DEBUG);
+	double viewerMean = 0.0;
+	double quoteMean = 0.0;
+	int numViewerValues = 0;
+	int numQuoteValues = 0;
+	for (int i = 0; i < _numOfDatasets; i++) {
+		//Logger::getInstance()->log(to_string(i), LOG_DEBUG);
+		//Logger::getInstance()->log(_lines[i+1], LOG_DEBUG);
+		//Logger::getInstance()->log(_columns[viewerIndex][i], LOG_DEBUG);
+		if(_columns[viewerIndex][i] != "NULL") {
+			//Logger::getInstance()->log(_columns[viewerIndex][i], LOG_DEBUG);
+			viewerMean += stod(_columns[viewerIndex][i]);
+			numViewerValues++;
+		}
+
+		if(_columns[quoteIndex][i] != "NULL") {
+			quoteMean += stod(_columns[quoteIndex][i]);
+			numQuoteValues++;
+		}
+	}
+
+	viewerMean = viewerMean / numViewerValues;
+	quoteMean = viewerMean / numQuoteValues;
+
+	Logger::getInstance()->log("updateing columns ...", LOG_DEBUG);
+	int numViewerModified = 0;
+	int numQuoteModified = 0;
+	for (int i = 0; i < _numOfDatasets; i++) {
+		if(_columns[viewerIndex][i] == "NULL") {
+			_columns[viewerIndex][i] = to_string(viewerMean);
+			numViewerModified++;
+		}
+
+		if(_columns[quoteIndex][i] == "NULL") {
+			_columns[quoteIndex][i] = to_string(quoteMean);
+			numQuoteModified++;
+		}
+	}
+
+	Logger::getInstance()->log("updated '"+to_string(numViewerModified)+"' viewers and '"+to_string(numQuoteModified)+"' quotes.", LOG_DEBUG);
+
+
+
+	ofstream of(filename);
+	if (!of.is_open()) {
+		Logger::getInstance()->log("cannot open file '"+filename+"'!", LOG_CRITICAL);
+		throw MyException("EXCEPTION: cannot open file!");
+	}
+
+	Logger::getInstance()->log("writing to file ...", LOG_DEBUG);
+	if((int)_headline.size() == _numOfColumns) {
+		for (unsigned int i = 0; i < _headline.size(); i++) {
+
+			if(i != 0)
+				of << delimiter;
+
+			of << _headline[i];
+		}
+		of << endl;
+	}
+
+
+	// add contents to output file by adding new 'ID' column
+	for (int i = 0; i < _numOfDatasets; i++) {
+
+		for (int j = 0; j < _numOfColumns; j++) {
+			// no delimiter at beginning
+			if (j != 0)
+				of << delimiter;
+
+			of << to_string(_columns[j][i]);
+		}
+
+		if (i < (_numOfDatasets - 1))
+			of << endl;
+	}
+
+
+	Logger::getInstance()->log("completing viewer and quote column done!", LOG_DEBUG);
+
+}
 
 
 
