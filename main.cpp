@@ -133,8 +133,8 @@ bool fileExist(string filename);
 
 
 // to string operations
-string resultsToStringHuman(map<string, vector<double> >* predictionResults, vector<string>* methods, vector<double> means);
-string resultsToString(map<string, vector<double> >* predictionResults, vector<string>* methods, vector<double> means);
+string resultsToStringHuman(map<string, vector<double> >* predictionResults, vector<string>* methods, vector<double>* means);
+string resultsToString(map<string, vector<double> >* predictionResults, vector<string>* methods, vector<double>* means);
 string predictionToString(TatortFMPredictor *bestFmPredictor, double bestResult, int currIter);
 
 
