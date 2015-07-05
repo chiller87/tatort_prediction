@@ -421,6 +421,13 @@ void Parser::divideLinesTrainAndTest(string sourceFilename, bool isHeaderPresent
 	}
 
 
+	/*
+	ofstream outfile("chosen_train_data.dat");
+	for(int i = 0; i < trainData.size(); i++) {
+		outfile << trainData[i] << endl;
+	}
+	*/
+
 
 	ofstream trainFile(trainFilename.c_str());
 	ofstream testFile(testFilename.c_str());
