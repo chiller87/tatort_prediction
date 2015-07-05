@@ -93,20 +93,27 @@ bool runScenario_g = false;
 
 
 // global definitions used for parameter search
-int iterStart_g = 50, iterStop_g = 400, iterStep_g = 50;
-double stdevStart_g = 0.0, stdevStop_g = 5, stdevStep_g = 0.5;
+int iterStart_g = 300, iterStop_g = 800, iterStep_g = 20;
+double stdevStart_g = 0.0, stdevStop_g = 2.0, stdevStep_g = 0.4;
 double regStart_g = 0.0, regStop_g = 1.0, regStep_g = 0.2;
 double lrStart_g = 0.0001, lrStop_g = 0.001, lrStep_g = 0.0001;
 unsigned int numOfThreads_g = 4;
 bool mcmc_g = false, sgd_g = false, als_g = false;
+int dataRepresentation_g = DATA_UE_MATRIX;
 
 
 // global definitions used for scenario testing
-double initStdev_g = 0.0, initLr_g = 0.05;
-int initIter_g = 20;
+double initStdev_g = 1.2, initLr_g = 0.05;
+int initIter_g = 580;
 string initAlgo_g = "mcmc", initReg_g = "1.0";
-unsigned int numOfScenarios_g = 3;
+unsigned int numOfScenarios_g = 10;
 vector<unsigned int> attributeIndicesToUse_g;
+TatortFMPredictor matrixPredictor_g;
+TatortFMPredictor tensorPredictor_g;
+TatortFMPredictor tensorAttributesPredictor_g;
+string matPredFile_g = "param_matrix.dat";
+string tenPredFile_g = "param_tensor.dat";
+string tenAttPredFile_g = "param_tensorAttributes.dat";
 
 
 
@@ -130,6 +137,7 @@ void completeViewersAndQuotes(string filename, int viewerIndex, int quoteIndex);
 void writeToFile(string filename, string text);
 void appendLineToFile(string filename, string text);
 bool fileExist(string filename);
+void readPredictorsFromFile();
 
 
 // to string operations
@@ -147,7 +155,7 @@ void runFMParser(string trainFilename, string testFilename, int dataRepresentati
 double runFMPredictor(string trainFilename, string testFilename, string predFilename, TatortFMPredictor fmPredictor);
 double tendencyTrainAndTest(string trainFilename, string testFilename, string predFilename);
 double fmTrainAndTest(string trainFilename, string testFilename, string predFilename, TatortFMPredictor fmPredictor, int dataRepresentation);
-void testScenario(string scenarioName, vector<double>* prediction, TatortFMPredictor fmPredictor);
+void testScenario(string scenarioName, vector<double>* prediction);
 
 
 // searching for best parameters
@@ -250,7 +258,7 @@ int main(int argc, char **argv) {
 	// searching for the best parameters
 	else if(parameterSearch_g) {
 
-		string scenario = dbPrefix_g;
+		string scenario = dbCleanPrefix_g;
 		try {
 			searchingOptimalParams(scenario, numOfThreads_g);
 		} catch(MyException e) {
@@ -259,6 +267,8 @@ int main(int argc, char **argv) {
 	}
 	// run test
 	else if (runScenario_g){
+
+		
 
 
 		// initialize and name test scenarios
@@ -303,16 +313,22 @@ int main(int argc, char **argv) {
 		methods.push_back("FM_ten_attr");
 
 		// initialize FM tuning parameters to run
+		// you should initialize the fm predictor via the appropriate file for that data representation
+		/*
 		TatortFMPredictor fmPredictor;
 		fmPredictor.setAlgorithm(initAlgo_g);
 		fmPredictor.setIterations(initIter_g);
 		fmPredictor.setStdev(initStdev_g);
 		fmPredictor.setRegulation(initReg_g);
 		fmPredictor.setLearningRate(initLr_g);
+		*/
+
+
+		readPredictorsFromFile();
 
 		map<string, vector<double> >::iterator scenarioIter;
 		for (scenarioIter = scenarioResults.begin(); scenarioIter != scenarioResults.end(); scenarioIter++) {
-			testScenario(scenarioIter->first, &scenarioIter->second, fmPredictor);
+			testScenario(scenarioIter->first, &scenarioIter->second);
 		}
 
 
@@ -353,6 +369,71 @@ int main(int argc, char **argv) {
 
 
 
+
+
+void readPredictorsFromFile() {
+	ifstream infile(matPredFile_g);
+	if (!infile.is_open()) {
+		Logger::getInstance()->log("file '" + matPredFile_g + "' does not exist!", LOG_CRITICAL);
+		exit(1);
+	}
+	string algo, reg;
+	int iter;
+	double stdev, lr;
+	infile >> algo;
+	infile >> iter;
+	infile >> stdev;
+	infile >> reg;
+	infile >> lr;
+	matrixPredictor_g.setAlgorithm(algo);
+	matrixPredictor_g.setIterations(iter);
+	matrixPredictor_g.setStdev(stdev);
+	matrixPredictor_g.setRegulation(reg);
+	matrixPredictor_g.setLearningRate(lr);
+	infile.close();
+	infile.clear();
+
+	infile.open(tenPredFile_g);
+	if (!infile.is_open()) {
+		Logger::getInstance()->log("file '" + tenPredFile_g + "' does not exist!", LOG_CRITICAL);
+		exit(1);
+	}
+	infile >> algo;
+	infile >> iter;
+	infile >> stdev;
+	infile >> reg;
+	infile >> lr;
+	tensorPredictor_g.setAlgorithm(algo);
+	tensorPredictor_g.setIterations(iter);
+	tensorPredictor_g.setStdev(stdev);
+	tensorPredictor_g.setRegulation(reg);
+	tensorPredictor_g.setLearningRate(lr);
+	infile.close();
+	infile.clear();
+
+	infile.open(tenAttPredFile_g);
+	if (!infile.is_open()) {
+		Logger::getInstance()->log("file '" + tenAttPredFile_g + "' does not exist!", LOG_CRITICAL);
+		exit(1);
+	}
+	infile >> algo;
+	infile >> iter;
+	infile >> stdev;
+	infile >> reg;
+	infile >> lr;
+	tensorAttributesPredictor_g.setAlgorithm(algo);
+	tensorAttributesPredictor_g.setIterations(iter);
+	tensorAttributesPredictor_g.setStdev(stdev);
+	tensorAttributesPredictor_g.setRegulation(reg);
+	tensorAttributesPredictor_g.setLearningRate(lr);
+	infile.close();
+	infile.clear();
+
+}
+
+
+
+
 vector<double> computeMeanForResults(map<string, vector<double> >* predictionResults) {
 
 	vector<double> means;
@@ -386,9 +467,9 @@ vector<double> computeMeanForResults(map<string, vector<double> >* predictionRes
 void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 	if (numOfThreads >= 1) {
 
-		divideDataIntoTrainAndTestData(scenario, 1, 80);
+		//divideDataIntoTrainAndTestData(scenario, 1, 80);
 		scenario += "_1";
-		runFMParser(scenario+trainSuffix_g, scenario+testSuffix_g, DATA_UED_TENSOR);
+		runFMParser(scenario+trainSuffix_g, scenario+testSuffix_g, dataRepresentation_g);
 
 		if(!fileExist(scenario+trainSuffix_g+LIBFM_FILE_EXTENSION))
 			throw MyException("file '"+scenario+trainSuffix_g+LIBFM_FILE_EXTENSION+"' does not exist!");
@@ -798,16 +879,16 @@ string resultsToString(map<string, vector<double> >* predictionResults, vector<s
 
 
 // predict the given scenario with all implemented algorithms
-void testScenario(string scenarioName, vector<double>* prediction, TatortFMPredictor fmPredictor) {
+void testScenario(string scenarioName, vector<double>* prediction) {
 	
 	// run predictions and remember results in map
 	vector<double> results;
 	Logger::getInstance()->log("train and test '" + scenarioName + "' ...", LOG_DEBUG);
 	prediction->push_back(tendencyTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g));
 
-	prediction->push_back(fmTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g, fmPredictor, DATA_UE_MATRIX));
-	prediction->push_back(fmTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g, fmPredictor, DATA_UED_TENSOR));
-	prediction->push_back(fmTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g, fmPredictor, DATA_UED_TENSOR_PLUS_ATTRIBUTES));
+	prediction->push_back(fmTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g, matrixPredictor_g, DATA_UE_MATRIX));
+	prediction->push_back(fmTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g, tensorPredictor_g, DATA_UED_TENSOR));
+	prediction->push_back(fmTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g, tensorAttributesPredictor_g, DATA_UED_TENSOR_PLUS_ATTRIBUTES));
 
 	Logger::getInstance()->log("done with scenario '"+ scenarioName +"' ...", LOG_DEBUG);
 }
