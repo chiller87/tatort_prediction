@@ -29,6 +29,7 @@ protected:
 	double _stdev;
 	double _learnRate;
 	string _regulation;
+	string _logfile;
 
 
 
@@ -43,6 +44,7 @@ public:
 	void setLearningRate(double lr);
 	void setStdev(double stdev);
 	void setNumOfLatentFactors(int num);
+	void setLogfile(string logfile);
 
 	string getAlgorithm();
 	int getIterations();
