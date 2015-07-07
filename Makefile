@@ -9,7 +9,7 @@ SOURCES=$(wildcard *.cpp) $(wildcard *.h)
 # the object files
 OBJECTS=$(SOURCES:.cpp=.o)
 # name of the executable
-EXECUTABLE=test_linux
+EXECUTABLE=tatort_prediction
 
 all: $(SOURCES) $(EXECUTABLE)
 	
