@@ -42,12 +42,15 @@ public:
 	void setRegulation(string reg);
 	void setLearningRate(double lr);
 	void setStdev(double stdev);
+	void setNumOfLatentFactors(int num);
 
 	string getAlgorithm();
 	int getIterations();
 	string getRegulation();
 	double getLearningRate();
 	double getStdev();
+	string getDimension();
+	int getNumOfLatentFactors();
 
 	virtual double trainAndTest(string trainFilename, string testFilename, string predictionFilename);
 

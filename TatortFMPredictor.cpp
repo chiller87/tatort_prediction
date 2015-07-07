@@ -19,7 +19,7 @@ using namespace std;
 
 TatortFMPredictor::TatortFMPredictor() {
 	_algorithm = "mcmc";
-	
+
 	_iterations = 200;
 	_stdev = 0.0;
 	_learnRate = 0.0;
@@ -165,5 +165,23 @@ void TatortFMPredictor::copyFrom(TatortFMPredictor *fmp) {
 	this->setIterations(fmp->getIterations());
 	this->setRegulation(fmp->getRegulation());
 	this->setLearningRate(fmp->getLearningRate());
+	this->_useW0 = fmp->_useW0;
+	this->_useW = fmp->_useW;
+	this->_numOfLatentFactors = fmp->_numOfLatentFactors;
+	this->parametersToUse(this->_useW0, this->_useW, this->_numOfLatentFactors);
 }
 
+
+
+string TatortFMPredictor::getDimension() {
+	return _dim;
+}
+
+int TatortFMPredictor::getNumOfLatentFactors() {
+	return _numOfLatentFactors;
+}
+
+void TatortFMPredictor::setNumOfLatentFactors(int num) {
+	_numOfLatentFactors = num;
+	parametersToUse(_useW0, _useW, num);
+}
