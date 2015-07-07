@@ -24,6 +24,7 @@ TatortFMPredictor::TatortFMPredictor() {
 	_stdev = 0.0;
 	_learnRate = 0.0;
 	_regulation = "0";
+	_logfile = "logfile.log";
 	
 
 	parametersToUse(true, true, 8);
@@ -38,6 +39,10 @@ TatortFMPredictor::~TatortFMPredictor() {
 
 }
 
+
+void TatortFMPredictor::setLogfile(string logfile) {
+	_logfile = logfile;
+}
 
 
 void TatortFMPredictor::parametersToUse(bool w0, bool w, unsigned int numOfLatentFactors) {
@@ -80,6 +85,7 @@ double TatortFMPredictor::trainAndTest(string trainFilename, string testFilename
 	libfmCmd << "-train " << trainFilename << " ";
 	libfmCmd << "-test " << testFilename << " ";
 	libfmCmd << "-out " << predictionFilename << " ";
+	libfmCmd << "-rlog " << _logfile << " ";
 
 	Logger::getInstance()->log("executing cmd: '"+ libfmCmd.str() +"'", LOG_DEBUG);
 
