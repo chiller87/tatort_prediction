@@ -162,7 +162,7 @@ void runFMParser(string trainFilename, string testFilename, int dataRepresentati
 double runFMPredictor(string trainFilename, string testFilename, string predFilename, TatortFMPredictor fmPredictor);
 double tendencyTrainAndTest(string trainFilename, string testFilename, string predFilename);
 double fmTrainAndTest(string trainFilename, string testFilename, string predFilename, TatortFMPredictor fmPredictor, int dataRepresentation);
-void testScenario(string scenarioName, vector<double>* prediction);
+void testScenario(const string *scenarioName, vector<double>* prediction);
 
 
 // searching for best parameters
@@ -355,8 +355,14 @@ int main(int argc, char **argv) {
 		readPredictorsFromFile();
 
 		map<string, vector<double> >::iterator scenarioIter;
+		vector<thread> threads;
 		for (scenarioIter = scenarioResults.begin(); scenarioIter != scenarioResults.end(); scenarioIter++) {
-			testScenario(scenarioIter->first, &scenarioIter->second);
+			//testScenario(&scenarioIter->first, &scenarioIter->second);
+			threads.push_back(thread(testScenario, &scenarioIter->first, &scenarioIter->second));
+		}
+
+		for (int i = 0; i < threads.size(); i++) {
+			threads[i].join();
 		}
 
 
@@ -1161,18 +1167,18 @@ string resultsToString(map<string, vector<double> >* predictionResults, vector<s
 
 
 // predict the given scenario with all implemented algorithms
-void testScenario(string scenarioName, vector<double>* prediction) {
+void testScenario(const string *scenarioName, vector<double>* prediction) {
 	
 	// run predictions and remember results in map
 	vector<double> results;
-	Logger::getInstance()->log("train and test '" + scenarioName + "' ...", LOG_DEBUG);
-	prediction->push_back(tendencyTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g));
+	Logger::getInstance()->log("train and test '" + *scenarioName + "' ...", LOG_DEBUG);
+	prediction->push_back(tendencyTrainAndTest(*scenarioName + trainSuffix_g, *scenarioName + testSuffix_g, *scenarioName + predSuffix_g));
 
-	prediction->push_back(fmTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g, matrixPredictor_g, DATA_UE_MATRIX));
-	prediction->push_back(fmTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g, tensorPredictor_g, DATA_UED_TENSOR));
-	prediction->push_back(fmTrainAndTest(scenarioName + trainSuffix_g, scenarioName + testSuffix_g, scenarioName + predSuffix_g, tensorAttributesPredictor_g, DATA_UED_TENSOR_PLUS_ATTRIBUTES));
+	prediction->push_back(fmTrainAndTest(*scenarioName + trainSuffix_g, *scenarioName + testSuffix_g, *scenarioName + predSuffix_g, matrixPredictor_g, DATA_UE_MATRIX));
+	prediction->push_back(fmTrainAndTest(*scenarioName + trainSuffix_g, *scenarioName + testSuffix_g, *scenarioName + predSuffix_g, tensorPredictor_g, DATA_UED_TENSOR));
+	prediction->push_back(fmTrainAndTest(*scenarioName + trainSuffix_g, *scenarioName + testSuffix_g, *scenarioName + predSuffix_g, tensorAttributesPredictor_g, DATA_UED_TENSOR_PLUS_ATTRIBUTES));
 
-	Logger::getInstance()->log("done with scenario '"+ scenarioName +"' ...", LOG_DEBUG);
+	Logger::getInstance()->log("done with scenario '"+ *scenarioName +"' ...", LOG_DEBUG);
 }
 
 
