@@ -25,7 +25,6 @@
 
 #include <string>
 #include <iostream>
-#include <ctime>
 #include <iomanip>
 #include <vector>
 #include <map>
@@ -90,7 +89,6 @@ string delimiter_g = "|";
 bool help_g = false;
 bool parameterSearch_g = false;
 bool runScenario_g = false;
-bool nlfSearch_g = false;
 
 
 // global definitions used for parameter search
@@ -103,6 +101,7 @@ bool mcmc_g = false, sgd_g = false, als_g = false;
 bool includeNLF_g = false;
 int nlf_g = 8;
 int nlfStart_g = 8, nlfStop_g = 8, nlfStep_g = 2;
+vector<int> nlfValues_g;
 TatortFMPredictor nlfPredictor_g;
 
 
@@ -264,7 +263,22 @@ int main(int argc, char **argv) {
 
 
 	//cout << "max random number = " << RAND_MAX << endl;
-	clock_t begin = clock();
+	//clock_t begin = clock();
+	
+	//using namespace std::chrono;
+
+	chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
+
+
+	
+
+	
+
+	
+	
+	
+	
+	
 	// init logger
 	Logger::getInstance()->setVerbosityLevel(LOG_DEBUG);
 
@@ -290,12 +304,6 @@ int main(int argc, char **argv) {
 		} catch(MyException e) {
 			Logger::getInstance()->log(e.getErrorMsg(), LOG_CRITICAL);
 		}
-	}
-	// search for best k
-	else if (nlfSearch_g) {
-		string scenario = dbCleanPrefix_g;
-
-		fmNLFChoice(scenario);
 	}
 	// run test
 	else if (runScenario_g){
@@ -390,9 +398,16 @@ int main(int argc, char **argv) {
 		
 	}
 
-	clock_t end = clock();
-	double elapsedSeconds = double(end - begin) / CLOCKS_PER_SEC;
+
+
+	//clock_t end = clock();
+	//double elapsedSeconds = double(end - begin) / CLOCKS_PER_SEC;
 	
+	chrono::high_resolution_clock::time_point stop = chrono::high_resolution_clock::now();
+	chrono::duration<double> time_span = chrono::duration_cast<chrono::duration<double>>(stop - start);
+	double elapsedSeconds = time_span.count();
+
+
 
 	Logger::getInstance()->log("computation took '"+ to_string(elapsedSeconds) +"' seconds!", LOG_INFO);
 
@@ -1466,7 +1481,6 @@ int parseCmdLineArguments(int argc, char **argv) {
 		}
 		else if(!string("-k").compare(argv[i])) {
 			if(argc > i+1) {
-				nlfSearch_g = true;
 				vector<string> params = StringTokenizer::justTokenize(string(argv[++i]), ",");
 				if(params.size() == 3) {
 					nlfStart_g = stoi(params[0]);
