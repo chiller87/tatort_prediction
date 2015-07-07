@@ -1498,7 +1498,7 @@ int parseCmdLineArguments(int argc, char **argv) {
 
 
 		// scenario testing
-		else if(!string("-ns").compare(argv[i])) {
+		else if(!string("-test").compare(argv[i])) {
 			if(argc > i+1) {
 				runScenario_g = true;
 				numOfScenarios_g = stoi(argv[++i]);
