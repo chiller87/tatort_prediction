@@ -62,17 +62,18 @@ using namespace std;
 
 
 
-// struct of data belonging to each thres (parallel parameter testing)
+// struct of data belonging to each thread (parallel parameter testing)
 typedef struct {
 	int threadID;
 	int start, stop, step;
 } ThreadData_t;
 
 
-// mutexe (?) used to avoid problems writing to same files in different threads
+// mutexe (?) used to avoid problems writing to same files or objects in different threads
 mutex sgdFileMutex_g;
 mutex alsFileMutex_g;
 mutex mcmcFileMutex_g;
+mutex workMutex_g;
 
 
 // global definitions of filename parts
@@ -96,12 +97,12 @@ int iterStart_g = 100, iterStop_g = 500, iterStep_g = 100;
 double stdevStart_g = 0.0, stdevStop_g = 2.0, stdevStep_g = 0.5;
 double regStart_g = 0.0, regStop_g = 1.0, regStep_g = 0.2;
 double lrStart_g = 0.0001, lrStop_g = 0.001, lrStep_g = 0.0001;
-unsigned int numOfThreads_g = 4;
+unsigned int numOfThreads_g = 1;
 bool mcmc_g = false, sgd_g = false, als_g = false;
 bool includeNLF_g = false;
 int nlf_g = 8;
 int nlfStart_g = 8, nlfStop_g = 8, nlfStep_g = 2;
-vector<int> nlfValues_g;
+vector<int> workToDo_g;
 TatortFMPredictor nlfPredictor_g;
 
 
@@ -117,6 +118,9 @@ TatortFMPredictor tensorAttributesPredictor_g;
 string matPredFile_g = "param_matrix.dat";
 string tenPredFile_g = "param_tensor.dat";
 string tenAttPredFile_g = "param_tensorAttributes.dat";
+// scenarioname  ->  results:(TB, UIM, UIT, UIT+)
+map<string, vector<double> > scenarioResults_g;
+map<string, vector<double> >::iterator scenarioIter_g;
 
 
 // general global definitions
@@ -128,13 +132,13 @@ int dataRepresentation_g = DATA_UE_MATRIX;
 
 
 // modifying DB data
-// deprecated
-void addUserIdAndDetectiveId(string filename);
 void addIdColumn(string filename, unsigned int columnId, string newColumnTitel);
 void parseMapsAndWriteToFile(string filename);
 void cleanDataset(string filename, int userRatingThreshold);
 void divideDataIntoTrainAndTestData(string sourceFilename, int count, int trainPercentage);
 void completeViewersAndQuotes(string filename, int viewerIndex, int quoteIndex);
+// deprecated
+void addUserIdAndDetectiveId(string filename);
 
 
 // file operations
@@ -146,8 +150,8 @@ TatortFMPredictor readPredictorFromFile(string filename);
 
 
 // to string operations
-string resultsToStringHuman(map<string, vector<double> >* predictionResults, vector<string>* methods, vector<double>* means);
-string resultsToString(map<string, vector<double> >* predictionResults, vector<string>* methods, vector<double>* means);
+string resultsToStringHuman(map<string, vector<double> >* predictionResults, vector<string>* methods);
+string resultsToString(map<string, vector<double> >* predictionResults, vector<string>* methods);
 string predictionToString(TatortFMPredictor *bestFmPredictor, double bestResult);
 string predictorToString(TatortFMPredictor fmPred);
 
@@ -161,6 +165,8 @@ void runFMParser(string trainFilename, string testFilename, int dataRepresentati
 double runFMPredictor(string trainFilename, string testFilename, string predFilename, TatortFMPredictor fmPredictor);
 double tendencyTrainAndTest(string trainFilename, string testFilename, string predFilename);
 double fmTrainAndTest(string trainFilename, string testFilename, string predFilename, TatortFMPredictor fmPredictor, int dataRepresentation);
+void testScenarioParallel();
+// deprecated
 void testScenario(const string *scenarioName, vector<double>* prediction);
 
 
@@ -170,6 +176,12 @@ void fmParallelParameterChoicePerIteration(string trainFilename, string testFile
 void fmParallelParameterChoicePerNLF(string trainFilename, string testFilename, ThreadData_t *td);
 void checkParams(string trainFilename, string testFilename, string predFilename, TatortFMPredictor *currFmPredictor, TatortFMPredictor *bestFmPredictor, double *bestResult, string outFilename, mutex *fileMutex = NULL);
 // deprecated
+void searchingOptimalParamsOLD(string scenario, unsigned int numOfThreads = 1);
+// deprecated
+void fmParallelParameterChoicePerIterationOLD(string trainFilename, string testFilename, ThreadData_t *td);
+// deprecated
+void fmParallelParameterChoicePerNLFOLD(string trainFilename, string testFilename, ThreadData_t *td);
+// deprecated
 void fmNLFChoice(string scenario);
 // deprecated
 //void fmParallelParameterChoicePerAlgorithm(string trainFilename, string testFilename, string algorithm, TatortFMPredictor *bestFmPredictor);
@@ -178,7 +190,7 @@ void fmNLFChoice(string scenario);
 
 
 // statistics
-vector<double> computeMeanForResults(map<string, vector<double> >* predictionResults);
+void computeMeanForResults(map<string, vector<double> >* predictionResults, int numOfMethods);
 
 // output
 void showHelp();
@@ -258,36 +270,17 @@ void showHelp() {
 
 int main(int argc, char **argv) {
 
-
-
-
-
-	//cout << "max random number = " << RAND_MAX << endl;
-	//clock_t begin = clock();
-	
-	//using namespace std::chrono;
-
+	// just for measuring elapsed time
 	chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
 
-
-	
-
-	
-
-	
-	
-	
-	
-	
-	// init logger
+	// init logger instance
 	Logger::getInstance()->setVerbosityLevel(LOG_DEBUG);
 
-	srand(time(NULL));
 
 	// initialize attributes to use for tensor-plus-attribute scenario (will be cleared, if cmd line option '-attr' is present)
-	attributeIndicesToUse_g.push_back(2);
-	attributeIndicesToUse_g.push_back(8);
-	attributeIndicesToUse_g.push_back(9);
+	attributeIndicesToUse_g.push_back(2); // episode ID
+	attributeIndicesToUse_g.push_back(8); // viewer count
+	attributeIndicesToUse_g.push_back(9); // viewer quote
 
 	parseCmdLineArguments(argc, argv);
 
@@ -308,12 +301,11 @@ int main(int argc, char **argv) {
 	// run test
 	else if (runScenario_g){
 		// initialize and name test scenarios
-		// scenario -> results: 	TB    FM (Matrix)    FM (Tensor)    ...
-		map<string, vector<double> > scenarioResults;
+		scenarioResults_g.clear();
 		for (unsigned int i = 1; i <= numOfScenarios_g; i++) {
 			string strId = to_string(i);
-			scenarioResults.insert(pair<string, vector<double> >(dbCleanPrefix_g+"_" + strId, vector<double>()));
-			scenarioResults.insert(pair<string, vector<double> >(dbPrefix_g+"_" + strId, vector<double>()));
+			scenarioResults_g.insert(pair<string, vector<double> >(dbCleanPrefix_g+"_" + strId, vector<double>()));
+			scenarioResults_g.insert(pair<string, vector<double> >(dbPrefix_g+"_" + strId, vector<double>()));
 		}
 
 
@@ -348,43 +340,38 @@ int main(int argc, char **argv) {
 		methods.push_back("FM_ten");
 		methods.push_back("FM_ten_attr");
 
-		// initialize FM tuning parameters to run
-		// you should initialize the fm predictor via the appropriate file for that data representation
-		/*
-		TatortFMPredictor fmPredictor;
-		fmPredictor.setAlgorithm(initAlgo_g);
-		fmPredictor.setIterations(initIter_g);
-		fmPredictor.setStdev(initStdev_g);
-		fmPredictor.setRegulation(initReg_g);
-		fmPredictor.setLearningRate(initLr_g);
-		*/
+
+
 
 
 		readPredictorsFromFile();
 
-		map<string, vector<double> >::iterator scenarioIter;
+		scenarioIter_g = scenarioResults_g.begin();
+		vector<thread> threads;
+		for (int i = 0; i < numOfThreads_g; i++) {
+			//testScenario(&scenarioIter->first, &scenarioIter->second);
+			threads.push_back(thread(testScenarioParallel));
+		}
+		
+		/*
 		vector<thread> threads;
 		for (scenarioIter = scenarioResults.begin(); scenarioIter != scenarioResults.end(); scenarioIter++) {
 			//testScenario(&scenarioIter->first, &scenarioIter->second);
 			threads.push_back(thread(testScenario, &scenarioIter->first, &scenarioIter->second));
 		}
+		*/
 
 		for (int i = 0; i < threads.size(); i++) {
 			threads[i].join();
 		}
 
+		computeMeanForResults(&scenarioResults_g, methods.size());
 
-		vector<double> means = computeMeanForResults(&scenarioResults);
-		
-
-
-		string strResults = resultsToStringHuman(&scenarioResults, &methods, &means);
+		string strResults = resultsToStringHuman(&scenarioResults_g, &methods);
 		writeToFile("scenario_results.dat", strResults);
 		Logger::getInstance()->log(strResults, LOG_INFO);
-		strResults = resultsToString(&scenarioResults, &methods, &means);
+		strResults = resultsToString(&scenarioResults_g, &methods);
 		writeToFile("scenario_results.csv", strResults);
-		
-		//cout << strResults << endl;
 	
 	}
 	else {
@@ -400,9 +387,7 @@ int main(int argc, char **argv) {
 
 
 
-	//clock_t end = clock();
-	//double elapsedSeconds = double(end - begin) / CLOCKS_PER_SEC;
-	
+	// the rest of measuring elapsed time	
 	chrono::high_resolution_clock::time_point stop = chrono::high_resolution_clock::now();
 	chrono::duration<double> time_span = chrono::duration_cast<chrono::duration<double>>(stop - start);
 	double elapsedSeconds = time_span.count();
@@ -417,6 +402,45 @@ int main(int argc, char **argv) {
 }
 
 
+
+// predict the given scenario with all implemented algorithms
+void testScenarioParallel() {
+
+	bool done = false;
+	
+	while (!done) {
+
+		const string *scenarioName;
+		vector<double> *prediction;
+
+
+		// is there any more work to do?
+		workMutex_g.lock();
+		if (scenarioIter_g == scenarioResults_g.end()) {
+			done = true;
+		}
+		else {
+			// if so, get the job and point the iterator to the next one
+			scenarioName = &scenarioIter_g->first;
+			prediction = &scenarioIter_g->second;
+			scenarioIter_g++;
+		}
+		workMutex_g.unlock();
+
+		if (done)
+			break;
+
+		// run predictions and remember results in map
+		Logger::getInstance()->log("train and test '" + *scenarioName + "' ...", LOG_DEBUG);
+		prediction->push_back(tendencyTrainAndTest(*scenarioName + trainSuffix_g, *scenarioName + testSuffix_g, *scenarioName + predSuffix_g));
+
+		prediction->push_back(fmTrainAndTest(*scenarioName + trainSuffix_g, *scenarioName + testSuffix_g, *scenarioName + predSuffix_g, matrixPredictor_g, DATA_UE_MATRIX));
+		prediction->push_back(fmTrainAndTest(*scenarioName + trainSuffix_g, *scenarioName + testSuffix_g, *scenarioName + predSuffix_g, tensorPredictor_g, DATA_UED_TENSOR));
+		prediction->push_back(fmTrainAndTest(*scenarioName + trainSuffix_g, *scenarioName + testSuffix_g, *scenarioName + predSuffix_g, tensorAttributesPredictor_g, DATA_UED_TENSOR_PLUS_ATTRIBUTES));
+
+		Logger::getInstance()->log("done with scenario '" + *scenarioName + "' ...", LOG_DEBUG);
+	}
+}
 
 
 
@@ -527,8 +551,72 @@ TatortFMPredictor readPredictorFromFile(string filename) {
 
 
 
-// runs a bunch of parameter combination, not per algorithm but within in a range of iterations to take. this thread function is a
-// much better parallelization of parameter testing, becausle all threads have approximately the same number of iterations to compute
+
+
+void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
+	if (numOfThreads >= 1) {
+
+		//divideDataIntoTrainAndTestData(scenario, 1, 80);
+		scenario += "_1";
+		runFMParser(scenario+trainSuffix_g, scenario+testSuffix_g, dataRepresentation_g);
+
+		if(!fileExist(scenario+trainSuffix_g+LIBFM_FILE_EXTENSION))
+			throw MyException("file '"+scenario+trainSuffix_g+LIBFM_FILE_EXTENSION+"' does not exist!");
+		if(!fileExist(scenario+testSuffix_g+LIBFM_FILE_EXTENSION))
+			throw MyException("file '"+scenario+testSuffix_g+LIBFM_FILE_EXTENSION+"' does not exist!");
+		if(!fileExist(scenario+targetSuffix_g+DB_FILE_EXTENSION))
+			throw MyException("file '"+scenario+targetSuffix_g+LIBFM_FILE_EXTENSION+"' does not exist!");
+
+		// choose range of outer loop
+		int workStart = iterStart_g;
+		int workStop = iterStop_g;
+		int workStep = iterStep_g;
+
+		if(includeNLF_g) {
+			workStart = nlfStart_g;
+			workStop = nlfStop_g;
+			workStep = nlfStep_g;
+		}
+
+		// clear work
+		workToDo_g.clear();
+
+
+		// compute work to do
+		for (int w = workStart; w <= workStop; w += workStep) {
+			workToDo_g.push_back(w);
+		}
+
+		vector<thread> threads;
+		vector<ThreadData_t*> threadData;
+
+		for (unsigned int i = 0; i < numOfThreads; ++i) {
+			
+			threadData.push_back(new ThreadData_t);
+			threadData[i]->threadID = i;
+			
+			// run thread
+			if(includeNLF_g)
+				threads.push_back(thread(fmParallelParameterChoicePerNLF, scenario + trainSuffix_g, scenario + testSuffix_g, threadData[i]));
+			else
+				threads.push_back(thread(fmParallelParameterChoicePerIteration, scenario + trainSuffix_g, scenario + testSuffix_g, threadData[i]));
+		}
+
+		// wait for threads to finish
+		for (unsigned int i = 0; i < threads.size(); i++) {
+			threads[i].join();
+			delete threadData[i];
+		}
+
+	}
+	else {
+		Logger::getInstance()->log("invalid number of threads!", LOG_ERROR);
+	}
+}
+
+
+
+
 void fmParallelParameterChoicePerNLF(string trainFilename, string testFilename, ThreadData_t *td) {
 
 	// run SGD with different tuning params \Theta = {standarddeviation, iterations, regulation, learnrate}
@@ -548,10 +636,10 @@ void fmParallelParameterChoicePerNLF(string trainFilename, string testFilename, 
 	string bestParameterFile_als = "best_param_als.dat";
 	string bestParameterFile_sgd = "best_param_sgd.dat";
 
-	string predFilename = "pred_result_"+ to_string(td->threadID);
+	string predFilename = "pred_result_" + to_string(td->threadID);
 
 
-	if(mcmc_g) {
+	if (mcmc_g) {
 		mcmcFileMutex_g.lock();
 		writeToFile(paramFile_mcmc, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
 		writeToFile(bestParameterFile_mcmc, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
@@ -559,26 +647,40 @@ void fmParallelParameterChoicePerNLF(string trainFilename, string testFilename, 
 	}
 
 
-	if(als_g) {
+	if (als_g) {
 		alsFileMutex_g.lock();
 		writeToFile(paramFile_als, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
 		writeToFile(bestParameterFile_als, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
 		alsFileMutex_g.unlock();
 	}
 
-	if(sgd_g) {
+	if (sgd_g) {
 		sgdFileMutex_g.lock();
 		writeToFile(paramFile_sgd, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
 		writeToFile(bestParameterFile_sgd, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
 		sgdFileMutex_g.unlock();
 	}
 
-
-	//runFMParser(trainFilename, testFilename, DATA_UED_TENSOR);
-
-
+	bool done = false;
 	if (mcmc_g || als_g || sgd_g) {
-		for (int k = td->start; k <= td->stop; k += td->step) {
+		while (!done) {
+			int k = 0;
+
+			// check forfurther work to do
+			workMutex_g.lock();
+			if (workToDo_g.empty()) {
+				done = true;
+			}
+			else {
+				k = workToDo_g.back();
+				workToDo_g.pop_back();
+			}
+			workMutex_g.unlock();
+
+			if (done)
+				break;
+
+
 			TatortFMPredictor currFmPredictor;
 			TatortFMPredictor bestAlsPredictor;
 			TatortFMPredictor bestSgdPredictor;
@@ -591,7 +693,7 @@ void fmParallelParameterChoicePerNLF(string trainFilename, string testFilename, 
 
 
 			for (int iters = iterStart_g; iters <= iterStop_g; iters += iterStep_g) {
-				
+
 				currFmPredictor.setIterations(iters);
 
 				for (double stdev = stdevStart_g; stdev <= stdevStop_g; stdev += stdevStep_g) {
@@ -656,98 +758,167 @@ void fmParallelParameterChoicePerNLF(string trainFilename, string testFilename, 
 
 
 
-// runs a bunch of parameter combination, not per algorithm but within in a range of iterations to take. this thread function is a
-// much better parallelization of parameter testing, becausle all threads have approximately the same number of iterations to compute
-void fmNLFChoice(string scenario) {
-	Logger::getInstance()->log("experimentally searching for the best choice of nlf ...", LOG_DEBUG);
+void fmParallelParameterChoicePerIteration(string trainFilename, string testFilename, ThreadData_t *td) {
 
-	scenario += "_1";
-	string trainFilename = scenario + trainSuffix_g;
-	string testFilename = scenario + testSuffix_g;
-	string predFilename = "pred_result";
+	// run SGD with different tuning params \Theta = {standarddeviation, iterations, regulation, learnrate}
+	// run ALS with different tuning params \Theta = {standarddeviation, iterations, regulation}
+	// run MCMC with different tuning params \Theta = {standarddeviation, iterations}
+
+	Logger::getInstance()->log("experimentally searching for the best model parameter choices ...", LOG_DEBUG);
 
 	int errorCount = 0;
 
-	string resFile = "serach_k.dat";
-	
+	string paramFile_sgd = "param_search_sgd.dat";
+	string paramFile_als = "param_search_als.dat";
+	string paramFile_mcmc = "param_search_mcmc.dat";
+
+	string bestParameterFile = "best_param.dat";
+	string bestParameterFile_mcmc = "best_param_mcmc.dat";
+	string bestParameterFile_als = "best_param_als.dat";
+	string bestParameterFile_sgd = "best_param_sgd.dat";
+
+	string predFilename = "pred_result_" + to_string(td->threadID);
 
 
-	runFMParser(scenario+trainSuffix_g, scenario+testSuffix_g, dataRepresentation_g);
-	
+	if (mcmc_g) {
+		mcmcFileMutex_g.lock();
+		writeToFile(paramFile_mcmc, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(bestParameterFile_mcmc, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		mcmcFileMutex_g.unlock();
+	}
 
-	writeToFile(resFile, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+
+	if (als_g) {
+		alsFileMutex_g.lock();
+		writeToFile(paramFile_als, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(bestParameterFile_als, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		alsFileMutex_g.unlock();
+	}
+
+	if (sgd_g) {
+		sgdFileMutex_g.lock();
+		writeToFile(paramFile_sgd, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(bestParameterFile_sgd, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		sgdFileMutex_g.unlock();
+	}
 
 
-	for(int k = nlfStart_g; k <= nlfStop_g; k += nlfStep_g) {
-		nlfPredictor_g.setNumOfLatentFactors(k);
-		double res = numeric_limits<double>::max();
-		try {
-			res = runFMPredictor(trainFilename, testFilename, predFilename, nlfPredictor_g);
+	//runFMParser(trainFilename, testFilename, DATA_UED_TENSOR);
+
+	bool done = false;
+	if (mcmc_g || als_g || sgd_g) {
+		while (!done) {
 			
-			
-			ostringstream os;
-			os << res << delimiter_g;
-			os << predictorToString(nlfPredictor_g);
+			int iters = 0;
+
+			// check forfurther work to do
+			workMutex_g.lock();
+			if (workToDo_g.empty()) {
+				done = true;
+			}
+			else {
+				iters = workToDo_g.back();
+				workToDo_g.pop_back();
+			}
+			workMutex_g.unlock();
+
+			if (done)
+				break;
 
 
-			appendLineToFile(resFile, os.str());
-		}
-		catch (MyException e) {
-			Logger::getInstance()->log(e.getErrorMsg(), LOG_ERROR);
+			TatortFMPredictor currFmPredictor;
+			TatortFMPredictor bestAlsPredictor;
+			TatortFMPredictor bestSgdPredictor;
+			TatortFMPredictor bestMcmcPredictor;
+
+			double bestAlsResult = numeric_limits<double>::max();
+			double bestSgdResult = numeric_limits<double>::max();
+			double bestMcmcResult = numeric_limits<double>::max();
+			currFmPredictor.setNumOfLatentFactors(nlf_g);
+			currFmPredictor.setIterations(iters);
+
+			for (double stdev = stdevStart_g; stdev <= stdevStop_g; stdev += stdevStep_g) {
+				currFmPredictor.setStdev(stdev);
+				currFmPredictor.setAlgorithm("mcmc");
+
+				if (mcmc_g)
+					checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestMcmcPredictor, &bestMcmcResult, paramFile_mcmc, &mcmcFileMutex_g);
+
+				if (als_g || sgd_g) {
+					for (double reg = regStart_g; reg <= regStop_g; reg += regStep_g) {
+						currFmPredictor.setRegulation(to_string(reg));
+						currFmPredictor.setAlgorithm("als");
+
+						if (als_g)
+							checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestAlsPredictor, &bestAlsResult, paramFile_als, &alsFileMutex_g);
+
+						if (sgd_g) {
+							for (double lr = lrStart_g; lr <= lrStop_g; lr += lrStep_g) {
+								currFmPredictor.setLearningRate(lr);
+								currFmPredictor.setAlgorithm("sgd");
+
+								checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestSgdPredictor, &bestSgdResult, paramFile_sgd, &sgdFileMutex_g);
+							}
+						}
+					}
+				}
+			}
+
+			string line;
+
+			if (mcmc_g) {
+				line = predictionToString(&bestMcmcPredictor, bestMcmcResult);
+				mcmcFileMutex_g.lock();
+				appendLineToFile(bestParameterFile_mcmc, line);
+				mcmcFileMutex_g.unlock();
+			}
+
+			if (als_g) {
+				line = predictionToString(&bestAlsPredictor, bestAlsResult);
+				alsFileMutex_g.lock();
+				appendLineToFile(bestParameterFile_als, line);
+				alsFileMutex_g.unlock();
+			}
+
+			if (sgd_g) {
+				line = predictionToString(&bestSgdPredictor, bestSgdResult);
+				sgdFileMutex_g.lock();
+				appendLineToFile(bestParameterFile_sgd, line);
+				sgdFileMutex_g.unlock();
+			}
+
+
 		}
 	}
+
 
 
 	Logger::getInstance()->log("choosing parameters done! got '" + to_string(errorCount) + "' errors!", LOG_DEBUG);
-
 }
 
 
 
-string predictorToString(TatortFMPredictor fmPred) {
-	ostringstream os;
-	os << fmPred.getAlgorithm() << delimiter_g;
-	os << fmPred.getNumOfLatentFactors() << delimiter_g;
-	os << fmPred.getIterations() << delimiter_g;
-	os << fmPred.getStdev() << delimiter_g;
-	os << fmPred.getRegulation() << delimiter_g;
-	os << fmPred.getLearningRate();
-	return os.str();
-}
 
 
 
-vector<double> computeMeanForResults(map<string, vector<double> >* predictionResults) {
 
-	vector<double> means;
-	map<string, vector<double> >::iterator scenarioIter = predictionResults->begin();
-	if (scenarioIter == predictionResults->end())
-		return means;
 
-	int numberOfScenarios = 0;
-	for (unsigned int i = 0; i < scenarioIter->second.size(); i++) {
-		means.push_back(scenarioIter->second[i]);
-	}
-	numberOfScenarios++;
 
-	for (++scenarioIter; scenarioIter != predictionResults->end(); scenarioIter++) {
-		for (unsigned int i = 0; i < scenarioIter->second.size(); i++) {
-			means[i] += scenarioIter->second[i];
-		}
-		numberOfScenarios++;
-	}
 
-	for (unsigned i = 0; i < means.size(); i++) {
-		means[i] /= numberOfScenarios;
-	}
 
-	return means;
 
-}
+
+
+
+
+
+
+
+
 
 
 // initiates parameter testing for the given scenario. the number of threads given determines if the serial (1 or lower) or parallel (> 1) variant is used
-void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
+void searchingOptimalParamsOLD(string scenario, unsigned int numOfThreads) {
 	if (numOfThreads >= 1) {
 
 		//divideDataIntoTrainAndTestData(scenario, 1, 80);
@@ -867,11 +1038,139 @@ void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 
 
 
+// runs a bunch of parameter combination, not per algorithm but within in a range of k to compute. this thread function is a
+// much better parallelization of parameter testing, because all threads have approximately the same number of iterations to compute
+void fmParallelParameterChoicePerNLFOLD(string trainFilename, string testFilename, ThreadData_t *td) {
+
+	// run SGD with different tuning params \Theta = {standarddeviation, iterations, regulation, learnrate}
+	// run ALS with different tuning params \Theta = {standarddeviation, iterations, regulation}
+	// run MCMC with different tuning params \Theta = {standarddeviation, iterations}
+
+	Logger::getInstance()->log("experimentally searching for the best model parameter choices ...", LOG_DEBUG);
+
+	int errorCount = 0;
+
+	string paramFile_sgd = "param_search_sgd.dat";
+	string paramFile_als = "param_search_als.dat";
+	string paramFile_mcmc = "param_search_mcmc.dat";
+
+	string bestParameterFile = "best_param.dat";
+	string bestParameterFile_mcmc = "best_param_mcmc.dat";
+	string bestParameterFile_als = "best_param_als.dat";
+	string bestParameterFile_sgd = "best_param_sgd.dat";
+
+	string predFilename = "pred_result_" + to_string(td->threadID);
+
+
+	if (mcmc_g) {
+		mcmcFileMutex_g.lock();
+		writeToFile(paramFile_mcmc, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(bestParameterFile_mcmc, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		mcmcFileMutex_g.unlock();
+	}
+
+
+	if (als_g) {
+		alsFileMutex_g.lock();
+		writeToFile(paramFile_als, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(bestParameterFile_als, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		alsFileMutex_g.unlock();
+	}
+
+	if (sgd_g) {
+		sgdFileMutex_g.lock();
+		writeToFile(paramFile_sgd, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		writeToFile(bestParameterFile_sgd, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+		sgdFileMutex_g.unlock();
+	}
+
+
+	//runFMParser(trainFilename, testFilename, DATA_UED_TENSOR);
+
+
+	if (mcmc_g || als_g || sgd_g) {
+		for (int k = td->start; k <= td->stop; k += td->step) {
+			TatortFMPredictor currFmPredictor;
+			TatortFMPredictor bestAlsPredictor;
+			TatortFMPredictor bestSgdPredictor;
+			TatortFMPredictor bestMcmcPredictor;
+
+			double bestAlsResult = numeric_limits<double>::max();
+			double bestSgdResult = numeric_limits<double>::max();
+			double bestMcmcResult = numeric_limits<double>::max();
+			currFmPredictor.setNumOfLatentFactors(k);
+
+
+			for (int iters = iterStart_g; iters <= iterStop_g; iters += iterStep_g) {
+
+				currFmPredictor.setIterations(iters);
+
+				for (double stdev = stdevStart_g; stdev <= stdevStop_g; stdev += stdevStep_g) {
+					currFmPredictor.setStdev(stdev);
+					currFmPredictor.setAlgorithm("mcmc");
+
+					if (mcmc_g)
+						checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestMcmcPredictor, &bestMcmcResult, paramFile_mcmc, &mcmcFileMutex_g);
+
+					if (als_g || sgd_g) {
+						for (double reg = regStart_g; reg <= regStop_g; reg += regStep_g) {
+							currFmPredictor.setRegulation(to_string(reg));
+							currFmPredictor.setAlgorithm("als");
+
+							if (als_g)
+								checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestAlsPredictor, &bestAlsResult, paramFile_als, &alsFileMutex_g);
+
+							if (sgd_g) {
+								for (double lr = lrStart_g; lr <= lrStop_g; lr += lrStep_g) {
+									currFmPredictor.setLearningRate(lr);
+									currFmPredictor.setAlgorithm("sgd");
+
+									checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestSgdPredictor, &bestSgdResult, paramFile_sgd, &sgdFileMutex_g);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			string line;
+
+			if (mcmc_g) {
+				line = predictionToString(&bestMcmcPredictor, bestMcmcResult);
+				mcmcFileMutex_g.lock();
+				appendLineToFile(bestParameterFile_mcmc, line);
+				mcmcFileMutex_g.unlock();
+			}
+
+			if (als_g) {
+				line = predictionToString(&bestAlsPredictor, bestAlsResult);
+				alsFileMutex_g.lock();
+				appendLineToFile(bestParameterFile_als, line);
+				alsFileMutex_g.unlock();
+			}
+
+			if (sgd_g) {
+				line = predictionToString(&bestSgdPredictor, bestSgdResult);
+				sgdFileMutex_g.lock();
+				appendLineToFile(bestParameterFile_sgd, line);
+				sgdFileMutex_g.unlock();
+			}
+		}
+	}
+
+
+
+	Logger::getInstance()->log("choosing parameters done! got '" + to_string(errorCount) + "' errors!", LOG_DEBUG);
+
+
+}
+
+
 
 
 // runs a bunch of parameter combination, not per algorithm but within in a range of iterations to take. this thread function is a
 // much better parallelization of parameter testing, becausle all threads have approximately the same number of iterations to compute
-void fmParallelParameterChoicePerIteration(string trainFilename, string testFilename, ThreadData_t *td) {
+void fmParallelParameterChoicePerIterationOLD(string trainFilename, string testFilename, ThreadData_t *td) {
 
 	// run SGD with different tuning params \Theta = {standarddeviation, iterations, regulation, learnrate}
 	// run ALS with different tuning params \Theta = {standarddeviation, iterations, regulation}
@@ -1011,25 +1310,6 @@ void fmParallelParameterChoicePerIteration(string trainFilename, string testFile
 
 
 
-// creates a string from the given FM Predictor, the best result and the number of iterations, this result belongs to
-string predictionToString(TatortFMPredictor *bestFmPredictor, double bestResult) {
-	
-	string algo = bestFmPredictor->getAlgorithm();
-	ostringstream os;
-	os << bestResult << delimiter_g;
-	os << bestFmPredictor->getAlgorithm() << delimiter_g;
-	os << bestFmPredictor->getNumOfLatentFactors() << delimiter_g;
-	os << bestFmPredictor->getIterations() << delimiter_g;
-	os << bestFmPredictor->getStdev();
-	os << delimiter_g << bestFmPredictor->getRegulation();
-	os << delimiter_g << bestFmPredictor->getLearningRate();
-	return os.str();
-}
-
-
-
-
-
 
 
 
@@ -1067,6 +1347,150 @@ void checkParams(string trainFilename, string testFilename, string predFilename,
 }
 
 
+
+
+
+
+
+
+
+
+
+
+// runs a bunch of parameter combination, not per algorithm but within in a range of iterations to take. this thread function is a
+// much better parallelization of parameter testing, becausle all threads have approximately the same number of iterations to compute
+void fmNLFChoice(string scenario) {
+	Logger::getInstance()->log("experimentally searching for the best choice of nlf ...", LOG_DEBUG);
+
+	scenario += "_1";
+	string trainFilename = scenario + trainSuffix_g;
+	string testFilename = scenario + testSuffix_g;
+	string predFilename = "pred_result";
+
+	int errorCount = 0;
+
+	string resFile = "serach_k.dat";
+
+
+
+	runFMParser(scenario + trainSuffix_g, scenario + testSuffix_g, dataRepresentation_g);
+
+
+	writeToFile(resFile, "result" + delimiter_g + "algo" + delimiter_g + "k" + delimiter_g + "iterations" + delimiter_g + "stdev" + delimiter_g + "regulation" + delimiter_g + "learnrate\n");
+
+
+	for (int k = nlfStart_g; k <= nlfStop_g; k += nlfStep_g) {
+		nlfPredictor_g.setNumOfLatentFactors(k);
+		double res = numeric_limits<double>::max();
+		try {
+			res = runFMPredictor(trainFilename, testFilename, predFilename, nlfPredictor_g);
+
+
+			ostringstream os;
+			os << res << delimiter_g;
+			os << predictorToString(nlfPredictor_g);
+
+
+			appendLineToFile(resFile, os.str());
+		}
+		catch (MyException e) {
+			Logger::getInstance()->log(e.getErrorMsg(), LOG_ERROR);
+		}
+	}
+
+
+	Logger::getInstance()->log("choosing parameters done! got '" + to_string(errorCount) + "' errors!", LOG_DEBUG);
+
+}
+
+
+
+
+
+// creates a string from the given FM Predictor, the best result and the number of iterations, this result belongs to
+string predictionToString(TatortFMPredictor *bestFmPredictor, double bestResult) {
+
+	string algo = bestFmPredictor->getAlgorithm();
+	ostringstream os;
+	os << bestResult << delimiter_g;
+	os << bestFmPredictor->getAlgorithm() << delimiter_g;
+	os << bestFmPredictor->getNumOfLatentFactors() << delimiter_g;
+	os << bestFmPredictor->getIterations() << delimiter_g;
+	os << bestFmPredictor->getStdev();
+	os << delimiter_g << bestFmPredictor->getRegulation();
+	os << delimiter_g << bestFmPredictor->getLearningRate();
+	return os.str();
+}
+
+
+
+
+
+
+
+string predictorToString(TatortFMPredictor fmPred) {
+	ostringstream os;
+	os << fmPred.getAlgorithm() << delimiter_g;
+	os << fmPred.getNumOfLatentFactors() << delimiter_g;
+	os << fmPred.getIterations() << delimiter_g;
+	os << fmPred.getStdev() << delimiter_g;
+	os << fmPred.getRegulation() << delimiter_g;
+	os << fmPred.getLearningRate();
+	return os.str();
+}
+
+
+// adds means to predictionResults
+void computeMeanForResults(map<string, vector<double> >* predictionResults, int numOfMethods) {
+
+	vector<double> mu;
+	vector<double> mu_origin;
+	vector<double> mu_clean;
+
+	int originCount = 0;
+	int cleanCount = 0;
+
+	for (int i = 0; i < numOfMethods; i++) {
+		mu.push_back(0.0);
+		mu_origin.push_back(0.0);
+		mu_clean.push_back(0.0);
+	}
+
+
+	map<string, vector<double> >::iterator scenarioIter;
+
+	for (scenarioIter = predictionResults->begin(); scenarioIter != predictionResults->end(); scenarioIter++) {
+		// if scenarioname starts with cleanPrefix, the result should be added to mu_clean
+		if (scenarioIter->first.find(dbCleanPrefix_g) == 0) {
+			for (int i = 0; i < numOfMethods; i++) {
+				mu_clean[i] += scenarioIter->second[i];
+			}
+			cleanCount++;
+		}
+		// else it is original database
+		else {
+			for (int i = 0; i < numOfMethods; i++) {
+				mu_origin[i] += scenarioIter->second[i];
+			}
+			originCount++;
+		}
+	}
+
+	for (int i = 0; i < numOfMethods; i++) {
+		mu[i] = mu_origin[i] + mu_clean[i];
+		mu[i] /= (cleanCount + originCount);
+		mu_origin[i] /= originCount;
+		mu_clean[i] /= cleanCount;
+	}
+
+	predictionResults->insert(pair<string, vector<double>>(dbPrefix_g + "_mu", mu_origin));
+	predictionResults->insert(pair<string, vector<double>>(dbCleanPrefix_g + "_mu", mu_clean));
+	predictionResults->insert(pair<string, vector<double>>("mu", mu));
+}
+
+
+
+
 void appendLineToFile(string filename, string text) {
 	fstream file;
 	file.open(filename, fstream::app);
@@ -1090,7 +1514,7 @@ void writeToFile(string filename, string text) {
 
 
 // creates a string with results of all test scenarios (human readable)
-string resultsToStringHuman(map<string, vector<double> >* predictionResults, vector<string>* methods, vector<double>* means) {
+string resultsToStringHuman(map<string, vector<double> >* predictionResults, vector<string>* methods) {
 	map<string, vector<double> >::iterator pqIter;
 
 	int scenarioColumnWidth = 20;
@@ -1125,13 +1549,7 @@ string resultsToStringHuman(map<string, vector<double> >* predictionResults, vec
 		os << endl;
 	}
 
-	os << setw(scenarioColumnWidth) << "means";
-	for (unsigned int i = 0; i < means->size(); i++)
-	{
-		os << setw(columnWidth) << (*means)[i];
-	}
-
-	os << endl;
+	
 
 
 	return os.str();
@@ -1139,7 +1557,7 @@ string resultsToStringHuman(map<string, vector<double> >* predictionResults, vec
 
 
 // creates a string with results of all test scenarios
-string resultsToString(map<string, vector<double> >* predictionResults, vector<string>* methods, vector<double>* means) {
+string resultsToString(map<string, vector<double> >* predictionResults, vector<string>* methods) {
 	map<string, vector<double> >::iterator pqIter;
 
 	//int scenarioColumnWidth = 20;
@@ -1167,15 +1585,6 @@ string resultsToString(map<string, vector<double> >* predictionResults, vector<s
 		os << endl;
 	}
 
-	os << "means" << delimiter_g;
-	for (unsigned int i = 0; i < means->size(); i++)
-	{
-		os << (*means)[i];
-		if (i != means->size() - 1)
-			os << delimiter_g;
-	}
-
-	os << endl;
 
 	return os.str();
 }
