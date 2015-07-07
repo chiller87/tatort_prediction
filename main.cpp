@@ -686,6 +686,8 @@ void fmParallelParameterChoicePerNLF(string trainFilename, string testFilename, 
 			TatortFMPredictor bestSgdPredictor;
 			TatortFMPredictor bestMcmcPredictor;
 
+			string logfile = "log_k" + to_string(k);
+
 			double bestAlsResult = numeric_limits<double>::max();
 			double bestSgdResult = numeric_limits<double>::max();
 			double bestMcmcResult = numeric_limits<double>::max();
@@ -694,14 +696,20 @@ void fmParallelParameterChoicePerNLF(string trainFilename, string testFilename, 
 
 			for (int iters = iterStart_g; iters <= iterStop_g; iters += iterStep_g) {
 
+				logfile = "log_k" + to_string(k) + "_i" + to_string(iters);
 				currFmPredictor.setIterations(iters);
 
 				for (double stdev = stdevStart_g; stdev <= stdevStop_g; stdev += stdevStep_g) {
 					currFmPredictor.setStdev(stdev);
 					currFmPredictor.setAlgorithm("mcmc");
 
-					if (mcmc_g)
+					logfile = "log_k" + to_string(k) + "_i" + to_string(iters) + "_s" + to_string(stdev);
+
+					if (mcmc_g) {
+						logfile = "log_k" + to_string(k) + "_i" + to_string(iters) + "_s" + to_string(stdev) + "_mcmc";
+						currFmPredictor.setLogfile(logfile);
 						checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestMcmcPredictor, &bestMcmcResult, paramFile_mcmc, &mcmcFileMutex_g);
+					}
 
 					if (als_g || sgd_g) {
 						for (double reg = regStart_g; reg <= regStop_g; reg += regStep_g) {
