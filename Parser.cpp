@@ -6,6 +6,7 @@
 #include "MyException.h"
 #include "StringTokenizer.h"
 #include "Logger.h"
+#include "Tools.h"
 
 #include <fstream>
 #include <algorithm>
@@ -410,8 +411,11 @@ void Parser::divideLinesTrainAndTest(string sourceFilename, bool isHeaderPresent
 	
 	while (randomNumberCount != numTestData) {
 		// pick random number in range
-		randomNumber = ((double)rand() / (RAND_MAX)) * (_numOfDatasets - 1);
-		
+		//randomNumber = ((double)rand() / (RAND_MAX)) * (_numOfDatasets - 1);
+		randomNumber = Tools::getInstance()->getRandomNumber(_numOfDatasets);
+
+
+
 		// check if this dataset is already choosen
 		if (trainData[randomNumber] == 1) {
 			// if not, remove dataset from taindataset

@@ -22,7 +22,7 @@ public:
 	static Tools* getInstance();
 
 	double computeMAE(std::vector<double> predictions, std::vector<double> ratings);
-
+	unsigned int getRandomNumber(unsigned int max);
 
 
 };

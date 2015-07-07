@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <random>
 
 using namespace std;
 
@@ -57,4 +58,16 @@ double Tools::computeMAE(vector<double> predictions, vector<double> ratings) {
 
 	return mae;
 
+}
+
+
+
+unsigned int Tools::getRandomNumber(unsigned int max) {
+	//return ((double)rand() / (RAND_MAX)) * (max - 1);
+
+	std::random_device rd;
+	std::mt19937 mt(rd());
+	std::uniform_int_distribution<unsigned int> dist(0, max-1);
+
+	return dist(mt);
 }
