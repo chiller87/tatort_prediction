@@ -8,14 +8,23 @@
 	This is a little program, to convert and predict tatort DB, given as csv file, in various formats and with different algorithms.
 
 
-	Filenames, related to data files, schould be given without file extension. Filenames that are used to write data to, should be given with file extension.
-	The reason for this is, that the data files are named with a combination of different parts of the name,
+	Filenames, related to data files, schould be given without file extension. Filenames that are used to write data to, should be
+	given with file extension. The reason for this is, that the data files are named with a combination of different parts of the name,
 	e.g. "tatortdb_clean_1_train.csv" is a combination of:
 		dbCleanPrefix = "tatortdb_clean"
 		an ID = "_1"
 		trainSuffix = "_train"
 	The correct file extension (DB_FILE_EXTENSION or LIBFM_FILE_EXTENSION) is added where it is needed.
 	The filenames used to print some stuff are not build this way, and so they are defined where they are needed.
+
+	The file "tatortdb.csv" HAS TO BE present in your working directory.
+	
+	If you start a scenario run, the presence of the file "tatortdb_clean.csv" is responsible for not re-creating all scenario files needed,
+	so they all have to exist. If this file is not found, all necessary files are created. Further, for testing scenarios, the three parameter
+	files "uim.dat", "uit.dat" and "uitplus.dat" must exist, in order to tell the FM, what what parameters it should run with.
+
+	You can use "-h" or "-help" option to display help screen.
+
 
 
 	Author: Simon Schiller
@@ -115,9 +124,9 @@ vector<unsigned int> attributeIndicesToUse_g;
 TatortFMPredictor matrixPredictor_g;
 TatortFMPredictor tensorPredictor_g;
 TatortFMPredictor tensorAttributesPredictor_g;
-string matPredFile_g = "param_matrix.dat";
-string tenPredFile_g = "param_tensor.dat";
-string tenAttPredFile_g = "param_tensorAttributes.dat";
+string matPredFile_g = "uim.dat";
+string tenPredFile_g = "uit.dat";
+string tenAttPredFile_g = "uitplus.dat";
 // scenarioname  ->  results:(TB, UIM, UIT, UIT+)
 map<string, vector<double> > scenarioResults_g;
 map<string, vector<double> >::iterator scenarioIter_g;
@@ -214,39 +223,43 @@ void showHelp() {
 	int columnWidthOption = 16;
 	int columnWidthParam = 8;
 
-	cout << "=============================================================================" << endl;
-	cout << "                                       HELP                                  " << endl;
-	cout << "=============================================================================" << endl;
-	cout << "param types:\tn = int, d = double, str = string" << endl;
+	cout << "#############################################################################" << endl;
+	cout << "######                                                                 ######" << endl;
+	cout << "######                           HELP                                  ######" << endl;
+	cout << "######                                                                 ######" << endl;
+	cout << "#############################################################################" << endl;
+	
+	cout << endl << endl;
+	cout << "==========================" << endl;
+	cout << "=  option explanations:  =" << endl;
+	cout << "==========================" << endl;
+	cout << "param types:\tn = int, d = double, str = string" << endl << endl;
 	cout << setw(columnWidthOption) << "Option" << setw(columnWidthParam) << "Param" << "\tDescription" << endl;
 	cout << "-----------------------------------------------------------------------------" << endl;
-	cout << endl << "options used for testing scenarios:" << endl;
-	cout << setw(columnWidthOption) << "-test" << setw(columnWidthParam) << "n"<< "\trun test for 'n' different scenarios" << endl;
+	cout << "options used for testing scenarios:" << endl;
+	cout << setw(columnWidthOption) << "-test" << setw(columnWidthParam) << "n"<< "\trun test for 'n' different scenarios (1 = 1 tatortdb + 1 tatortdb_clean = 2 scenarios)" << endl;
 	//cout << setw(columnWidthOption) << "-attr" << setw(columnWidthParam) << "n,n,..." << "\twhat attributes should be used in tensor+attributes scenario (indices of columns)" << endl;
 
 	cout << endl << "options used for parameter search:" << endl;
-	cout << setw(columnWidthOption) << "-search" << setw(columnWidthParam) << "n" << "\trun parameter search including (= 1) number of latent factors (nlf) or not (= 0)" << endl;
-	cout << setw(columnWidthOption) << "-threads" << setw(columnWidthParam) << "n" << "\trun parameter search with number of threads (default is 1)" << endl;
-	cout << setw(columnWidthOption) << "-algos" << setw(columnWidthParam) << "n,n,n" << "\trun parameter search for algorithm 'mcmc,als,sgd' (e.g. '1,0,1' for mcmc and sgd)" << endl;
+	cout << setw(columnWidthOption) << "-search" << setw(columnWidthParam) << "n" << "\trun parameter search including (= 1) number of latent factors (k) or not (= 0)" << endl;
+	cout << setw(columnWidthOption) << "-algos" << setw(columnWidthParam) << "n,n,n" << "\trun parameter search for algorithms 'mcmc,als,sgd' (e.g. '1,0,1' for mcmc and sgd)" << endl;
 	cout << setw(columnWidthOption) << "-iter" << setw(columnWidthParam) << "n,n,n" << "\trun parameter search with range of iterations 'start,stop,step'" << endl;
 	cout << setw(columnWidthOption) << "-stdev" << setw(columnWidthParam) << "d,d,d" << "\trun parameter search with range of standard deviation 'start,stop,step'" << endl;
 	cout << setw(columnWidthOption) << "-reg" << setw(columnWidthParam) << "d,d,d" << "\trun parameter search with range of regulation 'start,stop,step'" << endl;
 	cout << setw(columnWidthOption) << "-lr" << setw(columnWidthParam) << "d,d,d" << "\trun parameter search with range of learning rates 'start,stop,step'" << endl;
-	cout << setw(columnWidthOption) << "-k" << setw(columnWidthParam) << "n,n,n" << "\trun search with nlf range 'start, stop, step'" << endl;
+	cout << setw(columnWidthOption) << "-k" << setw(columnWidthParam) << "n,n,n" << "\trun search with range of number of latent factors 'start, stop, step'" << endl;
 	cout << setw(columnWidthOption) << "-dr" << setw(columnWidthParam) << "n" << "\trun parameter search with given representation of data (1=UIM, 2=UIT, 3=UIT+) (default = 2)" << endl;
-
-
-
 
 	cout << endl << "general options:" << endl;
 	cout << setw(columnWidthOption) << "-help, -h" << setw(columnWidthParam) << " " << "\tshow this screen" << endl;
-	cout << endl << "if multiple options (-h, -ns, -psearch) are present, only one executed:" << endl;
-	cout << "1. -h" << endl;
-	cout << "2. -psearch" << endl;
-	cout << "3. -ns" << endl;
+	cout << setw(columnWidthOption) << "-threads" << setw(columnWidthParam) << "n" << "\trun parameter search or scenario testing with number of threads (default is 1)" << endl;
+	
 
-	cout << endl << "Additional Information:" << endl << "==================================" << endl;
-	cout << "to run scenarios there have to be 3 files present ('param_matrix.dat', 'param_tensor.dat', 'param_tensorAttributes.dat'), each representing the parameters for the prediction with the specific data representation:" << endl;
+	cout << endl << endl;
+	cout << "=============================" << endl;
+	cout << "=  additional information:  =" << endl;
+	cout << "=============================" << endl;
+	cout << "to run scenarios there have to be 3 files present ('uim.dat', 'uit.dat', 'uitplus.dat'), each representing the parameters for the prediction with the specific data representation:" << endl;
 	cout << "The files should contain the following information with the given datatypes. Each line should contain one value in the following order:" << endl;
 	cout << setw(9) << "(str)\t" << setw(15) << "algorithm" << "\t(schould be one of 'mcmc', 'als', or 'sgd')" << endl;
 	cout << setw(9) << "(n)\t" << setw(15) << "iterations" << "\t(defines how many iterations should be used for training)" << endl;
@@ -257,7 +270,16 @@ void showHelp() {
 	cout << setw(9) << "(n)\t" << setw(15) << "w" << "\t(defines whether to use w (!= 0) or not (= 0))" << endl;
 	cout << setw(9) << "(n)\t" << setw(15) << "k" << "\t(defines the number of latent factors to use)" << endl;
 
-	cout << endl << "run param search without NLF will compute best params per iteration with NLF = 8, otherwise per NLF" << endl;
+	cout << endl << "if you run param search without NLF will compute best params per iteration with NLF = 8, otherwise per NLF" << endl;
+
+	cout << endl << "if multiple options (-h, -ns, -search) are present, only one executed:" << endl;
+	cout << "1. -h" << endl;
+	cout << "2. -search" << endl;
+	cout << "3. -ns" << endl;
+
+	cout << endl << "always use thread option carefully. You should not use more threads than needed, e.g. if you specify parameter search tu run with exactly 2 parameter combinations,";
+	cout << "you should not use more than 2 threads. The same for scenario testing: You should not use more than 2 times the number of scenarios specified";
+	cout << " (testing 1 scenario = testing 1 x tatortdb and 1 x tatortdb_clean = 2 scenarios)" << endl;
 
 
 	cout << endl;
@@ -552,7 +574,7 @@ TatortFMPredictor readPredictorFromFile(string filename) {
 
 
 
-
+// initiates a search for optimal parameters
 void searchingOptimalParams(string scenario, unsigned int numOfThreads) {
 	if (numOfThreads >= 1) {
 
@@ -686,6 +708,7 @@ void fmParallelParameterChoicePerNLF(string trainFilename, string testFilename, 
 			TatortFMPredictor bestSgdPredictor;
 			TatortFMPredictor bestMcmcPredictor;
 
+			
 			string logfile = "log_k" + to_string(k);
 
 			double bestAlsResult = numeric_limits<double>::max();
@@ -716,14 +739,18 @@ void fmParallelParameterChoicePerNLF(string trainFilename, string testFilename, 
 							currFmPredictor.setRegulation(to_string(reg));
 							currFmPredictor.setAlgorithm("als");
 
-							if (als_g)
+							if (als_g) {
 								checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestAlsPredictor, &bestAlsResult, paramFile_als, &alsFileMutex_g);
+								logfile = "log_k" + to_string(k) + "_i" + to_string(iters) + "_s" + to_string(stdev) + "_r" + to_string(reg) + "_als";
+								currFmPredictor.setLogfile(logfile);
+							}
 
 							if (sgd_g) {
 								for (double lr = lrStart_g; lr <= lrStop_g; lr += lrStep_g) {
 									currFmPredictor.setLearningRate(lr);
 									currFmPredictor.setAlgorithm("sgd");
-
+									logfile = "log_k" + to_string(k) + "_i" + to_string(iters) + "_s" + to_string(stdev) + "_r" + to_string(reg) + "_lr" + to_string(lr) + "_sgd";
+									currFmPredictor.setLogfile(logfile);
 									checkParams(trainFilename, testFilename, predFilename, &currFmPredictor, &bestSgdPredictor, &bestSgdResult, paramFile_sgd, &sgdFileMutex_g);
 								}
 							}
@@ -734,6 +761,7 @@ void fmParallelParameterChoicePerNLF(string trainFilename, string testFilename, 
 
 			string line;
 
+			// write best result to file
 			if (mcmc_g) {
 				line = predictionToString(&bestMcmcPredictor, bestMcmcResult);
 				mcmcFileMutex_g.lock();
@@ -1340,6 +1368,7 @@ void checkParams(string trainFilename, string testFilename, string predFilename,
 		if (fileMutex != NULL)
 			fileMutex->lock();
 		
+		// write current result to file
 		appendLineToFile(outFilename, line);
 		
 		if (fileMutex != NULL)
@@ -1581,6 +1610,7 @@ string resultsToString(map<string, vector<double> >* predictionResults, vector<s
 		if (i != methods->size() - 1)
 			os << delimiter_g;
 	}
+	os << endl;
 
 	for (pqIter = predictionResults->begin(); pqIter != predictionResults->end(); pqIter++) {
 		os << pqIter->first << delimiter_g;
