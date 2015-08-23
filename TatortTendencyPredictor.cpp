@@ -346,19 +346,18 @@ double TatortTendencyPredictor::predictCase(int userId, int episodeId, int detec
 	double rating = 0.0;
 
 	// compute rating
-	if ((tau_u > 0) && (tau_i > 0)) {
+	if ((tau_u >= 0) && (tau_i >= 0)) {
 		rating = max((mu_u + tau_u), (mu_i + tau_i));
 	}
 	else if ((tau_u < 0) && (tau_i < 0)) {
 		rating = min((mu_u + tau_u), (mu_i + tau_i));
 	}
-	else if ((tau_u < 0) && (tau_i > 0)) {
+	else if ((tau_u < 0) && (tau_i >= 0)) {
 		rating = min( max(mu_u, (((mu_i + tau_u) * _beta) + (mu_u + tau_i) * (1 - _beta)) ), mu_i );
 	}
-	else if ((tau_u > 0) && (tau_i < 0)) {
+	else if ((tau_u >= 0) && (tau_i < 0)) {
 		rating = mu_i * _beta + mu_u * (1 - _beta);
 	}
-
 
 	// if user-detective mean is present ...
 	if (isDetectiveUserMeanPresent) {

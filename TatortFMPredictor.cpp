@@ -6,8 +6,8 @@
 #include "Tools.h"
 
 #include <sstream>
-
-
+#include <chrono>
+#include <fstream>
 
 
 
@@ -65,7 +65,7 @@ void TatortFMPredictor::parametersToUse(bool w0, bool w, unsigned int numOfLaten
 }
 
 
-double TatortFMPredictor::trainAndTest(string trainFilename, string testFilename, string predictionFilename) {
+double TatortFMPredictor::trainAndTest(string trainFilename, string testFilename, string predictionFilename, int dataRepresentation) {
 
 	// execute libFM command
 	ostringstream libfmCmd("");
@@ -89,8 +89,22 @@ double TatortFMPredictor::trainAndTest(string trainFilename, string testFilename
 
 	Logger::getInstance()->log("executing cmd: '"+ libfmCmd.str() +"'", LOG_DEBUG);
 
-	int ret = system(libfmCmd.str().c_str());
+	// just for measuring elapsed time
+	std::chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
 	
+	int ret = system(libfmCmd.str().c_str());
+	// the rest of measuring elapsed time	
+	std::chrono::high_resolution_clock::time_point stop = chrono::high_resolution_clock::now();
+	std::chrono::duration<double> time_span = chrono::duration_cast<chrono::duration<double>>(stop - start);
+	double elapsedSeconds = time_span.count();
+
+	// write time to file
+	std::fstream file;
+	file.open("libfm_elapsed_time", fstream::app);
+	file << dataRepresentation << " ::: " << libfmCmd.str() << "::: " << elapsedSeconds << endl;
+	file.close();
+
+
 	Logger::getInstance()->log("libfm returned '"+ to_string(ret) +"'", LOG_DEBUG);
 
 

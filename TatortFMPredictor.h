@@ -54,7 +54,7 @@ public:
 	string getDimension();
 	int getNumOfLatentFactors();
 
-	virtual double trainAndTest(string trainFilename, string testFilename, string predictionFilename);
+	virtual double trainAndTest(string trainFilename, string testFilename, string predictionFilename, int dataRepresentation);
 
 	string tuningParamsToString();
 
