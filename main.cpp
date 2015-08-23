@@ -370,7 +370,7 @@ int main(int argc, char **argv) {
 
 		scenarioIter_g = scenarioResults_g.begin();
 		vector<thread> threads;
-		for (int i = 0; i < numOfThreads_g; i++) {
+		for (unsigned int i = 0; i < numOfThreads_g; i++) {
 			//testScenario(&scenarioIter->first, &scenarioIter->second);
 			threads.push_back(thread(testScenarioParallel));
 		}
@@ -383,7 +383,7 @@ int main(int argc, char **argv) {
 		}
 		*/
 
-		for (int i = 0; i < threads.size(); i++) {
+		for (unsigned int i = 0; i < threads.size(); i++) {
 			threads[i].join();
 		}
 
